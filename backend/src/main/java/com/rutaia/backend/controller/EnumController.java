@@ -1,6 +1,7 @@
 package com.rutaia.backend.controller;
 
 import com.rutaia.backend.modelo.enums.DificultadEnum;
+import com.rutaia.backend.modelo.enums.EstadoConsultaEnum;
 import com.rutaia.backend.modelo.enums.ExperienciaEnum;
 import com.rutaia.backend.modelo.enums.RolEnum;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,7 @@ public class EnumController {
     public ResponseEntity<DificultadEnum[]> listarDificultades() {
         return ResponseEntity.ok(DificultadEnum.values());
     }
+
     @GetMapping("/roles")
     public ResponseEntity<RolEnum[]> listarRoles() {
         return ResponseEntity.ok(RolEnum.values());
@@ -24,5 +26,10 @@ public class EnumController {
     @GetMapping("/experiencias")
     public ResponseEntity<ExperienciaEnum[]> listarExperiencias() {
         return ResponseEntity.ok(ExperienciaEnum.values());
+    }
+
+    @GetMapping("/estados")
+    public ResponseEntity<EstadoConsultaEnum[]> listarEstados() {
+        return ResponseEntity.ok(EstadoConsultaEnum.values());
     }
 }
