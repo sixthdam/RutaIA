@@ -79,19 +79,24 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
 
-        CorsConfiguration config = new CorsConfiguration();
+        // Orígenes permitidos
+        configuration.setAllowedOriginPatterns(List.of("*"));
 
-        config.setAllowedOrigins(List.of("http://127.0.0.1:5500", "http://localhost:5500"));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(true);
+        // Métodos HTTP permitidos
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
 
-        UrlBasedCorsConfigurationSource source =
-                new UrlBasedCorsConfigurationSource();
+        // Cabeceras permitidas
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept"));
 
-        source.registerCorsConfiguration("/**", config);
+        // Cabeceras expuestas
+        configuration.setExposedHeaders(List.of("Authorization"));
 
+        configuration.setAllowCredentials(false);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
         return source;
     }
 }
