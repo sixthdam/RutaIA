@@ -5,8 +5,8 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        0,
-        0
+        16,
+        16
       ],
       "id": "c1b35841-af64-4c82-a9d6-4ba7147f2f72",
       "name": "When clicking ‘Execute workflow’"
@@ -42,7 +42,7 @@
       "retryOnFail": true,
       "credentials": {
         "openRouterApi": {
-          "id": "=D",
+          "id": "YOUR_OPENROUTER_CREDENTIAL_ID =D",
           "name": "OpenRouter account"
         }
       },
@@ -50,7 +50,8 @@
     },
     {
       "parameters": {
-        "jsCode": "const curso = $('Consulta a la base de datos').all()[$itemIndex].json;\nconst embedding = $input.first().json.data[0].embedding;\n\nif (embedding.length !== 1024) {\n  throw new Error(\n    `El embedding tiene ${embedding.length} dimensiones, pero Qdrant espera 1024.`\n  );\n}\n\nreturn [\n  {\n    json: {\n      id: curso.id_curso,\n      vector: embedding,\n      payload: {\n        id_curso: curso.id_curso,\n        nombre: curso.nombre,\n        descripcion: curso.descripcion,\n        categoria: curso.categoria,\n        dificultad: curso.dificultad,\n        duracion: curso.duracion,\n        activo: curso.activo\n      }\n    }\n  }\n];"
+        "mode": "runOnceForEachItem",
+        "jsCode": "const curso = $('Consulta a la base de datos').item.json;\nconst embedding = $input.item.json.data[0].embedding;\n\nreturn {\n    json: {\n      id: curso.id_curso,\n      vector: embedding,\n      payload: {\n        id_curso: curso.id_curso,\n        nombre: curso.nombre,\n        descripcion: curso.descripcion,\n        categoria: curso.categoria,\n        dificultad: curso.dificultad,\n        duracion: curso.duracion,\n        activo: curso.activo\n      }\n    }\n  }\n;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -88,8 +89,9 @@
         "method": "PUT",
         "url": "http://host.docker.internal:6333/collections/cursos/points",
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"points\": [\n    {\n      \"id\": {{ $('Preparar puntos').first().json.id }},\n      \"vector\": {{ $('Preparar puntos').first().json.vector.toJsonString() }},\n      \"payload\": {{ $('Preparar puntos').first().json.payload.toJsonString() }}\n    }\n  ]\n}",
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"points\": [\n    {\n      \"id\": {{ $('Preparar puntos').first().json.id }},\n      \"vector\": {{ $('Preparar puntos').first().json.vector.toJsonString() }},\n      \"payload\": {{ $('Preparar puntos').first().json.payload.toJsonString() }}\n    }\n  ]\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -135,21 +137,21 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT\n    c.id_curso,\n    c.nombre,\n    c.descripcion,\n    c.dificultad,\n    c.duracion,\n    c.activo,\n    cat.nombre AS categoria\nFROM cursos c\nINNER JOIN categorias cat\n    ON c.id_categoria = cat.id_categoria\nWHERE c.activo = true\nLIMIT 1;",
+        "query": "SELECT\n    c.id_curso,\n    c.nombre,\n    c.descripcion,\n    c.dificultad,\n    c.duracion,\n    c.activo,\n    cat.nombre AS categoria\nFROM cursos c\nINNER JOIN categorias cat\n    ON c.id_categoria = cat.id_categoria\nWHERE c.activo = true;",
         "options": {}
       },
       "type": "n8n-nodes-base.mySql",
       "typeVersion": 2.5,
       "position": [
-        192,
-        0
+        160,
+        16
       ],
       "id": "9288c773-4e0a-4348-aab7-e3c87dfc3536",
       "name": "Consulta a la base de datos",
       "retryOnFail": true,
       "credentials": {
         "mySql": {
-          "id": "=D",
+          "id": "YOUR_MYSQL_CREDENTIAL_ID =D",
           "name": "MySQL account 3"
         }
       },
@@ -193,6 +195,21 @@
       ],
       "id": "c41c9de6-0876-4a6c-af32-ae1d857e0e59",
       "name": "Respuesta a errores previos a embeddings"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"estado\": \"ok\",\n  \"mensaje\": \"Cursos guardados correctamente. Ya puedes actualizar esta página.\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1360,
+        -464
+      ],
+      "id": "aefdefce-bde3-453c-89fb-7f006ccbbe64",
+      "name": "Éxito al guardar la información"
     },
     {
       "parameters": {
@@ -296,7 +313,9 @@
           ],
           "combinator": "and"
         },
-        "options": {}
+        "options": {
+          "ignoreCase": false
+        }
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -463,7 +482,13 @@
     },
     "Loop de cursos": {
       "main": [
-        [],
+        [
+          {
+            "node": "Éxito al guardar la información",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "generar embedding",
