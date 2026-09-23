@@ -64,27 +64,9 @@ create table calificaciones(
 );
 
 
-grant all privileges on Logitrack.* to 'logi_admin';
-
-grant select, insert, update, delete on Logitrack.usuarios to 'logi_backend';
-grant select, insert, update, delete on Logitrack.roles to 'logi_backend';
-grant select, insert, update, delete on Logitrack.categorias to 'logi_backend';
-grant select, insert, update, delete on Logitrack.catalogos to 'logi_backend';
-grant select, insert, update, delete on Logitrack.bodegas to 'logi_backend';
-grant select, insert, update, delete on Logitrack.productos to 'logi_backend';
-
-grant select on Logitrack.audit_usuarios to 'logi_backend';
-grant select on Logitrack.audit_general to 'logi_backend';
-grant select, insert on Logitrack.audit_transacciones to 'logi_backend';
-
-grant select on Logitrack.audit_usuarios to 'logi_auditor';
-grant select on Logitrack.audit_general to 'logi_auditor';
-grant select on Logitrack.audit_transacciones to 'logi_auditor';
-
-grant select on Logitrack.catalogos to 'logi_reportes';
-grant select on Logitrack.categorias to 'logi_reportes';
-grant select on Logitrack.bodegas to 'logi_reportes';
-grant select on Logitrack.productos to 'logi_reportes';
+grant all privileges on proyectoia2.* to 'logi_admin';
+GRANT SELECT, INSERT, UPDATE, DELETE ON proyectoia2.* TO 'logi_backend';
+GRANT SELECT ON proyectoia2.* TO 'logi_auditor';
 
 
 create user if not exists 'usr_dba'@'%' identified by 'AdminPass123!';
