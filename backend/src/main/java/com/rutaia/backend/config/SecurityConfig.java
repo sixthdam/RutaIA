@@ -47,6 +47,8 @@ public class SecurityConfig {
 
                         .requestMatchers("/auth/login").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/api/enums/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/usuarios").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // Vital para el CORS del Frontend
 
                         // Protección genérica por metodo: Nadie que no sea ADMIN debería poder eliminar registros críticos (DELETE)

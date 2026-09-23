@@ -12,7 +12,7 @@ create table cursos(
 	id_categoria int not null,
 	nombre varchar(255) not null,
 	descripcion text,
-	dificultad enum('BASICO','INTERMEDIO','AVANZADO	') not null,
+	dificultad enum('BASICO','INTERMEDIO','AVANZADO') not null,
 	duracion int not null,
 	activo bool not null default true,
 	constraint fk_cursos_categorias foreign key (id_categoria) references categorias(id_categoria),
@@ -63,20 +63,7 @@ create table calificaciones(
 	constraint chk_rango_calificacion_calificaciones check (calificacion >= 1 and calificacion <=5)
 );
 
-
-grant all privileges on proyectoia2.* to 'logi_admin';
-GRANT SELECT, INSERT, UPDATE, DELETE ON proyectoia2.* TO 'logi_backend';
-GRANT SELECT ON proyectoia2.* TO 'logi_auditor';
-
-
-create user if not exists 'usr_dba'@'%' identified by 'AdminPass123!';
+-- MySQL 8.4 compatible user creation
 create user if not exists 'usr_api_service'@'%' identified by 'BackendPass123!';
-create user if not exists 'usr_auditor_qa'@'%' identified by 'AuditPass123!';
-
-grant 'logi_admin' to 'usr_dba'@'%';
-grant 'logi_backend' to 'usr_api_service'@'%';
-grant 'logi_auditor' to 'usr_auditor_qa'@'%';
-
-set default role 'logi_admin' to 'usr_dba'@'%';
-set default role 'logi_backend' to 'usr_api_service'@'%';
-set default role 'logi_auditor' to 'usr_auditor_qa'@'%';
+grant all privileges on proyectoia2.* to 'usr_api_service'@'%';
+flush privileges;
