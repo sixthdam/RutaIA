@@ -2,17 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { gsap } from "gsap";
+import { gsap } from "@/lib/gsap";
 import { AlertCircle, ChevronLeft, ExternalLink, Clock } from "lucide-react";
 import { api, ConsultaResponse, Recommendation, Source, Course, CalificacionResponse } from "@/lib/api/service";
 import { formatDate } from "@/lib/utils/date";
 import Link from "next/link";
 
-export default function HistoryDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  useEffect(() => {
-    const { ScrollTrigger } = require("gsap/ScrollTrigger");
-    gsap.registerPlugin(ScrollTrigger);
-  }, []);
+export default function HistoryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const consultaId = parseInt(id || "0", 10);
@@ -112,9 +108,9 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
                 start: "top 85%",
                 toggleActions: "play none none reverse",
               },
-            }
-          ),
-            "-=0.3";
+            },
+            "-=0.3"
+          );
         }
 
         if (ratingRef.current) {
@@ -132,9 +128,9 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
                 start: "top 85%",
                 toggleActions: "play none none reverse",
               },
-            }
-          ),
-            "-=0.3";
+            },
+            "-=0.3"
+          );
         }
 
         // Animate similarity bars

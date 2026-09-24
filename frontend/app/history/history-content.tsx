@@ -1,18 +1,15 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { gsap } from "gsap";
-import { Loader2, AlertCircle, ChevronRight, Clock, CheckCircle, XCircle, Search } from "lucide-react";
+import { gsap } from "@/lib/gsap";
+import { AlertCircle, ChevronRight, Clock, CheckCircle, XCircle, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { api, ConsultaResponse } from "@/lib/api/service";
-import { Skeleton } from "@/components/loading/Skeleton";
+import { useAuth } from "@/lib/auth/AuthContext";
 import { formatDate } from "@/lib/utils/date";
 
 export default function HistoryPage() {
-  useEffect(() => {
-    const { ScrollTrigger } = require("gsap/ScrollTrigger");
-    gsap.registerPlugin(ScrollTrigger);
-  }, []);
+  const { getUserId } = useAuth();
   const [consultas, setConsultas] = useState<ConsultaResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,9 +18,15 @@ export default function HistoryPage() {
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
 
   useEffect(() => {
+    const userId = getUserId();
+    if (!userId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLoading(false);
+      return;
+    }
     const fetchData = async () => {
       try {
-        const data = await api.getConsultas();
+        const data = await api.getConsultasByUsuario(userId); // TODO: Backend to implement GET /api/consultas?idUsuario={id}
         setConsultas(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al cargar historial");
@@ -32,7 +35,7 @@ export default function HistoryPage() {
       }
     };
     fetchData();
-  }, []);
+  }, [getUserId]);
 
   useEffect(() => {
     if (!loading && tbodyRef.current) {
