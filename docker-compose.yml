@@ -1,0 +1,44 @@
+version: '3.8'
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: rutaia-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: proyectoia2
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./database/Database.sql:/docker-entrypoint-initdb.d/Database.sql
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: rutaia-backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/proyectoia2
+      SPRING_DATASOURCE_USERNAME: usr_api_service
+      SPRING_DATASOURCE_PASSWORD: BackendPass123!
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: rutaia-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:8080
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
