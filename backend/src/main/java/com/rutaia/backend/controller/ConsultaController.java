@@ -56,6 +56,16 @@ public class ConsultaController {
         return ResponseEntity.ok(recomendacionService.obtenerPorConsulta(id));
     }
 
+        @PatchMapping("/{id}/estado")
+    @Operation(summary = "Actualizar el estado de una consulta")
+    @ApiResponse(responseCode = "200", description = "Estado actualizado con éxito")
+    @ApiResponse(responseCode = "404", description = "Consulta no encontrada")
+    public ResponseEntity<ConsultaResponseDTO> actualizarEstado(
+            @PathVariable Integer id,
+            @RequestParam String nuevoEstado) {
+        return ResponseEntity.ok(consultaService.actualizarEstado(id, nuevoEstado));
+    }
+
     @PostMapping
     @Operation(summary = "Registrar una nueva consulta de usuario")
     @ApiResponse(responseCode = "201", description = "Consulta registrada con éxito")
