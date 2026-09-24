@@ -24,6 +24,7 @@ public class SecurityConfig {
     // Este filtro es el que va a leer el token en cada petición
     private final JwtFilter jwtFilter;
     private final JwtAuthenticationEntryPoint authEntryPoint;
+    private final ApiKeyFilter apiKeyFilter;
 
 
     @Bean
@@ -55,19 +56,18 @@ public class SecurityConfig {
                         // usuarios queda cerrado al que no sea usuario ADMIN
                         .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
 
-                        .requestMatchers(HttpMethod.GET, "/api/cursos/**", "/api/categorias/**").hasAnyRole("ESTUDIANTE", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/cursos/**", "/api/categorias/**").hasAnyRole("ESTUDIANTE", "ADMIN", "AUTOMATION")
 
                         // Crear, actualizar o borrar cursos/categorías es exclusividad absoluta del ADMIN
                         .requestMatchers(HttpMethod.POST, "/api/cursos/**", "/api/categorias/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/cursos/**", "/api/categorias/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/cursos/**", "/api/categorias/**").hasRole("ADMIN")
 
-                        // Ambo roles pueden interactuar con el flujo de preguntas y respuestas de la IA
-                        .requestMatchers("/api/consultas/**").hasAnyRole("ESTUDIANTE", "ADMIN")
-                        .requestMatchers("/api/recomendaciones/**").hasAnyRole("ESTUDIANTE", "ADMIN")
-                        .requestMatchers("/api/fuentes/**").hasAnyRole("ESTUDIANTE", "ADMIN")
-                        .requestMatchers("/api/calificaciones/**").hasAnyRole("ESTUDIANTE", "ADMIN")
-                        .requestMatchers("/api/perfil/**").hasAnyRole("ESTUDIANTE", "ADMIN")
+                        // pueden interactuar con el flujo de preguntas y respuestas de la IA
+                        .requestMatchers("/api/consultas/**").hasAnyRole("ESTUDIANTE", "ADMIN", "AUTOMATION")
+                        .requestMatchers("/api/recomendaciones/**").hasAnyRole("ESTUDIANTE", "ADMIN", "AUTOMATION")
+                        .requestMatchers("/api/fuentes/**").hasAnyRole("ESTUDIANTE", "ADMIN", "AUTOMATION")
+                        .requestMatchers("/api/calificaciones/**").hasAnyRole("ESTUDIANTE", "ADMIN", "AUTOMATION")
 
                         // Cualquier otro POST, PUT o DELETE que se nos haya escapado arriba, requiere rol ADMIN por defecto
                         .requestMatchers(HttpMethod.POST, "/api/**").hasRole("ADMIN")
@@ -93,6 +93,7 @@ public class SecurityConfig {
                  * - Cargar el usuario en el contexto de seguridad
                  */
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(apiKeyFilter, UsernamePasswordAuthenticationFilter.class)
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(authEntryPoint))
                 // Finalmente construyo la configuración
                 .build();
@@ -124,6 +125,13 @@ public class SecurityConfig {
     @Bean
     public FilterRegistrationBean<JwtFilter> jwtFilterRegistration(JwtFilter filter) {
         FilterRegistrationBean<JwtFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    public FilterRegistrationBean<ApiKeyFilter> apiKeyFilterRegistration(ApiKeyFilter filter) {
+        FilterRegistrationBean<ApiKeyFilter> registration = new FilterRegistrationBean<>(filter);
         registration.setEnabled(false);
         return registration;
     }
