@@ -2,6 +2,7 @@ package com.rutaia.backend.service.impl;
 
 import com.rutaia.backend.dto.request.RecomendacionRequestDTO;
 import com.rutaia.backend.dto.response.RecomendacionResponseDTO;
+import com.rutaia.backend.exceptions.BusinessRuleException;
 import com.rutaia.backend.mapper.RecomendacionMapper;
 import com.rutaia.backend.modelo.Consulta;
 import com.rutaia.backend.modelo.Recomendacion;
@@ -54,6 +55,9 @@ public class RecomendacionServiceImpl implements RecomendacionService {
         Consulta consulta = consultaRepository.findById(requestDTO.getIdConsulta())
                 .orElseThrow(() -> new EntityNotFoundException("Consulta no encontrada con ID: " + requestDTO.getIdConsulta()));
 
+        if (recomendacionRepository.existsByConsultaIdConsulta(requestDTO.getIdConsulta())) {
+            throw new BusinessRuleException("La consulta ya tiene una recomendación");
+        }
         Recomendacion recomendacion = new Recomendacion();
         recomendacion.setConsulta(consulta);
         recomendacion.setRespuesta(requestDTO.getRespuesta());

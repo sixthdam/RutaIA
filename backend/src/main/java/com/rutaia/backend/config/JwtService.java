@@ -5,6 +5,7 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.security.Key;
@@ -15,8 +16,8 @@ import java.util.Map;
 @Service
 public class JwtService {
 
-    private final String SECRET = "clave_super_secreta_para_clase_2026";
-    private final long EXPIRATION = 1000 * 60 * 30; // 30 minutos
+    @Value("${secret}")
+    private String SECRET;
 
     private Key getKey() {
         return Keys.hmacShaKeyFor(SECRET.getBytes());
@@ -27,6 +28,8 @@ public class JwtService {
         Map<String, Object> claims = new HashMap<>();
         claims.put("role", role); // Guardamos el rol en los claims
 
+        // 30 minutos
+        long EXPIRATION = 1000L * 60 * 60 * 24 * 7;
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(username)

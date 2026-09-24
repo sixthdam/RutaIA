@@ -62,6 +62,6 @@ public class AuthService {
     private AuthResponse buildResponse(Usuario usuario) {
         String rol = usuario.getRol().name();
         String token = jwtService.generateToken(usuario.getCorreo(), rol);
-        return new AuthResponse(token, rol, usuario.getIdUsuario());
+        return new AuthResponse(token, rol, usuario.getIdUsuario(), usuario.getExperiencia().toString());
     }
 }
