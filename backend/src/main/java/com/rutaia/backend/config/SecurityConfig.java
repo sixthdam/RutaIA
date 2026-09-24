@@ -52,7 +52,7 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // usuarios queda cerrado al que no sea usuario
+                        // usuarios queda cerrado al que no sea usuario ADMIN
                         .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.GET, "/api/cursos/**", "/api/categorias/**").hasAnyRole("ESTUDIANTE", "ADMIN")
@@ -69,9 +69,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/calificaciones/**").hasAnyRole("ESTUDIANTE", "ADMIN")
                         .requestMatchers("/api/perfil/**").hasAnyRole("ESTUDIANTE", "ADMIN")
 
-                        // ==========================================
-                        // 5. CANDADO GENERAL PARA ESCRITURA Y ELIMINACIÓN
-                        // ==========================================
                         // Cualquier otro POST, PUT o DELETE que se nos haya escapado arriba, requiere rol ADMIN por defecto
                         .requestMatchers(HttpMethod.POST, "/api/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/**").hasRole("ADMIN")
