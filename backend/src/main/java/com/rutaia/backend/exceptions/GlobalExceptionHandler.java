@@ -1,14 +1,17 @@
 package com.rutaia.backend.exceptions;
 
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -87,6 +90,26 @@ public class GlobalExceptionHandler {
         );
     }
 
+    // 401: Credenciales incorrectas en el login
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidCredentials(InvalidCredentialsException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                new ErrorResponse(
+                        LocalDateTime.now(),
+                        HttpStatus.UNAUTHORIZED.value(),
+                        ex.getMessage(),
+                        "INVALID_CREDENTIALS"
+                )
+        );
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResource(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                new ErrorResponse(LocalDateTime.now(), HttpStatus.NOT_FOUND.value(),
+                        "La ruta solicitada no existe o es incorrecta", "ERROR_NO_HANDLER_FOUND"));
+    }
+
     // 404: Ruta de controlador no encontrada (Requiere la propiedad activada en application.properties)
     @ExceptionHandler(NoHandlerFoundException.class)
     public ResponseEntity<ErrorResponse> handlerNotFound(NoHandlerFoundException ex) {
@@ -96,6 +119,36 @@ public class GlobalExceptionHandler {
                         HttpStatus.NOT_FOUND.value(),
                         "La ruta solicitada no existe o es incorrecta",
                         "ERROR_NO_HANDLER_FOUND"
+                )
+        );
+    }
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(
+                new ErrorResponse(LocalDateTime.now(), HttpStatus.METHOD_NOT_ALLOWED.value(),
+                        "Método HTTP no soportado para esta ruta", "METHOD_NOT_ALLOWED"));
+    }
+
+    @ExceptionHandler(EmailAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleEmailExists(EmailAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                new ErrorResponse(
+                        LocalDateTime.now(),
+                        HttpStatus.CONFLICT.value(),
+                        ex.getMessage(),
+                        "EMAIL_ALREADY_EXISTS"
+                )
+        );
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                new ErrorResponse(
+                        LocalDateTime.now(),
+                        HttpStatus.CONFLICT.value(),
+                        "El recurso ya existe o viola una restricción de datos",
+                        "DATA_INTEGRITY_VIOLATION"
                 )
         );
     }
@@ -112,4 +165,5 @@ public class GlobalExceptionHandler {
                 )
         );
     }
+
 }

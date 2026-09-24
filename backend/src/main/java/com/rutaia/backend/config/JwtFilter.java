@@ -1,62 +1,48 @@
 package com.rutaia.backend.config;
 
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 @Component
 @RequiredArgsConstructor
-public class JwtFilter extends GenericFilter {
+public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
 
     @Override
-    public void doFilter(ServletRequest request,
-                         ServletResponse response,
-                         FilterChain chain)
-            throws IOException, ServletException {
+    protected void doFilterInternal(HttpServletRequest request,
+                                    @NonNull HttpServletResponse response,
+                                    @NonNull FilterChain chain)
+            throws ServletException, IOException {
 
-        HttpServletRequest http = (HttpServletRequest) request;
-        String header = http.getHeader("Authorization");
+        String header = request.getHeader("Authorization");
 
         if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
-            String username = jwtService.validateToken(token);
+            Claims claims = jwtService.parseClaims(header.substring(7));
 
-            if (username != null) {
-                // Extraemos el rol que venía dentro del token
-                String role = jwtService.extractRole(token);
+            if (claims != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                String role = claims.get("role", String.class);
+                List<SimpleGrantedAuthority> authorities = role != null
+                        ? List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                        : List.of();
 
-                // Convertimos el rol en una autoridad reconocida por Spring Security (ej: "ROLE_ESTUDIANTE" o "ROLE_ADMIN")
-                UsernamePasswordAuthenticationToken auth = getAuth(role, username);
-
+                var auth = new UsernamePasswordAuthenticationToken(
+                        claims.getSubject(), null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }
         chain.doFilter(request, response);
-    }
-
-    private static @NonNull UsernamePasswordAuthenticationToken getAuth(String role, String username) {
-        List<SimpleGrantedAuthority> authorities = Collections.emptyList();
-        if (role != null) {
-            authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
-        }
-
-        UsernamePasswordAuthenticationToken auth =
-                new UsernamePasswordAuthenticationToken(
-                        username,
-                        null,
-                        authorities // <--- Aquí ya van los roles reales
-                );
-        return auth;
     }
 }
