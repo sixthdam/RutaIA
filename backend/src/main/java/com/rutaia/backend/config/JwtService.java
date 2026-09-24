@@ -29,7 +29,7 @@ public class JwtService {
         claims.put("role", role); // Guardamos el rol en los claims
 
         // 30 minutos
-        long EXPIRATION = 1000 * 60 * 30;
+        long EXPIRATION = 1000L * 60 * 60 * 24 * 7;
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(username)
