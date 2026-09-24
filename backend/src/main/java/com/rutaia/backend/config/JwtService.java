@@ -1,6 +1,7 @@
 package com.rutaia.backend.config;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
@@ -35,30 +36,15 @@ public class JwtService {
                 .compact();
     }
 
-    // Extraer el username (Subject)
-    public String validateToken(String token) {
+    public Claims parseClaims(String token) {
         try {
             return Jwts.parserBuilder()
                     .setSigningKey(getKey())
                     .build()
                     .parseClaimsJws(token)
-                    .getBody()
-                    .getSubject();
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    public String extractRole(String token) {
-        try {
-            Claims claims = Jwts.parserBuilder()
-                    .setSigningKey(getKey())
-                    .build()
-                    .parseClaimsJws(token)
                     .getBody();
-            return claims.get("role", String.class);
-        } catch (Exception e) {
-            return null;
+        } catch (JwtException | IllegalArgumentException e) {
+            return null; // token inválido, expirado o mal formado
         }
     }
 }
