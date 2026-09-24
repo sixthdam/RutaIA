@@ -3,11 +3,9 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { gsap } from "@/lib/gsap";
 import { LogOut, User, BookOpen, Search, History, BarChart2 } from "lucide-react";
 
-gsap.registerPlugin(ScrollTrigger);
 
 interface HeaderProps {
   isAuthenticated: boolean;
@@ -27,7 +25,6 @@ export function Header({ isAuthenticated, userName, onLogout }: HeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const pathname = usePathname();
   const mobileMenuRef = useRef<HTMLDivElement>(null);
-  const mobileLinksRef = useRef<HTMLLIElement[]>([]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -38,6 +35,7 @@ export function Header({ isAuthenticated, userName, onLogout }: HeaderProps) {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMenuOpen(false);
   }, [pathname]);
 

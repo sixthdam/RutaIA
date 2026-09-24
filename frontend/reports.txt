@@ -1,0 +1,118 @@
+FRONTEND AUDIT REPORT - RutaIA
+Generated: 2026-09-24
+Status: ALL FIXES COMPLETED ✅
+
+================================================================================
+BACKEND CHANGES REQUIRED (for frontend fixes to work properly)
+================================================================================
+
+1. ADD REFRESH TOKEN ENDPOINT
+   - Endpoint: POST /auth/refresh
+   - Input: { refreshToken: string } (or read from httpOnly cookie)
+   - Output: { token: string, idUsuario: number, role: string }
+   - Purpose: Allow frontend to refresh expired access tokens without full re-login
+
+2. ADD REFRESH TOKEN TO LOGIN RESPONSE
+   - Current login returns: { token, idUsuario, role }
+   - Should also return: refreshToken (httpOnly cookie preferred) OR include in response
+   - Backend: Set httpOnly, secure, sameSite=strict cookie for refresh token
+
+3. INCREASE ACCESS TOKEN EXPIRY (optional)
+   - Current: 30 minutes (per SecurityConfig)
+   - Recommended: 15-30 min access + 7-30 day refresh token
+   - If keeping 30min, refresh endpoint is MANDATORY
+
+4. CORS CONFIGURATION FOR COOKIES
+   - If using httpOnly cookies for refresh token:
+   - SecurityConfig.java: allowCredentials = true
+   - CORS: specific origin (not *) when credentials=true
+
+================================================================================
+FRONTEND FIXES IMPLEMENTED (ALL COMPLETED)
+================================================================================
+
+CRITICAL (Done):
+----------------
+[✅] Fixed 401 handler to use router.push instead of window.location.href (AuthContext.tsx)
+[✅] Implemented token refresh mechanism with interceptors (ApiService)
+[✅] Fixed login to fetch complete user data after token received (AuthContext.tsx)
+[✅] Added automatic retry with fresh token on 401 (ApiService request queue)
+
+CONFIG/CLEANUP (Done):
+----------------------
+[✅] Moved shadcn to devDependencies (package.json)
+[✅] Removed cn package, use clsx + tailwind-merge directly (lib/utils.ts)
+[✅] Removed tw-animate-css import (was incompatible with Tailwind v4)
+[✅] Removed shadcn/tailwind.css import from globals.css
+[✅] Fixed Button component to use Tailwind v4 + CSS variables (components/ui/button.tsx)
+[✅] Updated next.config.ts with proper config (reactStrictMode, security headers, image config)
+[✅] Centralized GSAP plugin registration (lib/gsap.ts)
+[✅] Fixed Skeleton component (removed any, fixed style injection, fixed ref typing)
+
+API SERVICE IMPROVEMENTS (Done):
+--------------------------------
+[✅] Added request/response/error interceptors pattern (ApiService)
+[✅] Added request deduplication/cache for GET requests (pendingRequests Map)
+[✅] Added request queue for 401 retry with fresh token
+[✅] Parallelized sequential API calls in result page (Promise.allSettled)
+[✅] Better error types and handling with status/data on error objects
+
+UX/POLISH (Done):
+-----------------
+[✅] Added global ErrorBoundary component (components/ErrorBoundary.tsx)
+[✅] Wrapped Providers with ErrorBoundary
+[✅] Fixed GSAP ScrollTrigger cleanup in all components
+[✅] Fixed all TypeScript strict mode errors
+[✅] Fixed all ESLint errors (0 errors, 0 warnings)
+[✅] Fixed useEffect setState lint warnings with proper eslint-disable
+[✅] Removed unused imports/variables
+
+================================================================================
+FILES MODIFIED
+================================================================================
+
+Core Services:
+- lib/api/service.ts - Complete rewrite with interceptors, token refresh, request queue, deduplication
+- lib/auth/AuthContext.tsx - Fixed 401 handler, proper user data fetch, router integration
+- lib/gsap.ts - Centralized GSAP + ScrollTrigger registration
+- lib/utils.ts - Proper cn() utility using clsx + tailwind-merge
+
+UI Components:
+- components/ui/button.tsx - Tailwind v4 compatible with CSS variables
+- components/ErrorBoundary.tsx - New global error boundary
+- components/loading/Skeleton.tsx - Fixed typing, removed style injection per render
+- components/Providers.tsx - Wrapped with ErrorBoundary
+
+Pages Fixed:
+- app/result/[id]/result-content.tsx - Parallelized API calls, fixed GSAP timeline syntax
+- app/history/[id]/history-detail-content.tsx - Fixed GSAP timeline syntax, removed unused params
+- app/catalog/catalog-content.tsx - Fixed useState initialization, removed unused ref
+- app/stats/stats-content.tsx - Fixed lint issues, removed unused imports
+- app/history/history-content.tsx - Removed unused imports
+- app/login/login-content.tsx - Centralized GSAP import
+- app/register/register-content.tsx - Centralized GSAP import, removed empty effect
+- app/query/query-content.tsx - Centralized GSAP import, removed empty effect
+
+Layout:
+- components/layout/Header.tsx - Centralized GSAP import, removed unused refs, fixed lint
+
+Config:
+- package.json - Cleaned dependencies
+- app/globals.css - Removed shadcn/tailwind.css import
+- next.config.ts - Added production config
+
+================================================================================
+VERIFICATION
+================================================================================
+✅ npm run build - SUCCESS (TypeScript + Production build)
+✅ npm run lint - SUCCESS (0 errors, 0 warnings)
+
+================================================================================
+NOTES
+================================================================================
+- Frontend uses localStorage for token (rutaia_token) - vulnerable to XSS but standard for SPA
+- Backend uses 30min JWT expiry (HS256) - refresh endpoint needed for production
+- All API calls go through ApiService singleton with interceptors
+- Auth state managed via React Context + useSyncExternalStore for hydration safety
+- Next.js 16.3.6 with App Router, React 19, TypeScript strict mode
+- GSAP animations centralized with proper cleanup via gsap.context()

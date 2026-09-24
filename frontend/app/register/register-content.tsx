@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { gsap } from "gsap";
+import { gsap } from "@/lib/gsap";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2, AlertCircle, Mail, Lock, User, Eye, EyeOff, ChevronLeft } from "lucide-react";
@@ -14,17 +14,12 @@ interface Experience {
 }
 
 export default function RegisterPage() {
-  useEffect(() => {
-    const { ScrollTrigger } = require("gsap/ScrollTrigger");
-    gsap.registerPlugin(ScrollTrigger);
-  }, []);
   const [formData, setFormData] = useState({
     nombre: "",
     correo: "",
     contrasenia: "",
     experiencia: "",
     areaInteres: "",
-    rol: "ESTUDIANTE",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -79,8 +74,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (formData.contrasenia.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres");
+    if (formData.contrasenia.length < 8) {
+      setError("La contraseña debe tener al menos 8 caracteres");
       return;
     }
 
@@ -183,7 +178,7 @@ export default function RegisterPage() {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
-              <div className="form-help">Mínimo 6 caracteres</div>
+              <div className="form-help">Mínimo 8 caracteres</div>
             </div>
 
             <div className="form-group">

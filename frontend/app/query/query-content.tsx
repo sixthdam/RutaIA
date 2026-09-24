@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { gsap } from "gsap";
+import { gsap } from "@/lib/gsap";
 import { useRouter } from "next/navigation";
-import { Search, Sparkles, ArrowRight, Loader2 } from "lucide-react";
-import { api } from "@/lib/api/service";
+import { Search, Sparkles, ArrowRight, Loader2, AlertCircle, CheckCircle } from "lucide-react";
+import { api, N8nPayload, N8nErrorResponse } from "@/lib/api/service";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 const exampleQueries = [
@@ -19,16 +19,14 @@ export default function QueryPage() {
   const [question, setQuestion] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isProcessingN8n, setIsProcessingN8n] = useState(false);
+  const [n8nSuccess, setN8nSuccess] = useState(false);
+  const [n8nError, setN8nError] = useState<{ titulo: string; mensaje: string; accion: string } | null>(null);
   
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
-  const { getUserId } = useAuth();
-
-  useEffect(() => {
-    const { ScrollTrigger } = require("gsap/ScrollTrigger");
-    gsap.registerPlugin(ScrollTrigger);
-  }, []);
+  const { getUserId, user } = useAuth();
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -43,6 +41,16 @@ export default function QueryPage() {
     }, formRef);
     return () => ctx.revert();
   }, []);
+
+  useEffect(() => {
+    if (n8nSuccess || n8nError) {
+      const timer = setTimeout(() => {
+        setN8nSuccess(false);
+        setN8nError(null);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [n8nSuccess, n8nError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,11 +75,46 @@ export default function QueryPage() {
         pregunta: question.trim(),
         idUsuario: userId,
       });
-      router.push(`/result/${response.idConsulta}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al procesar la consulta");
-    } finally {
+
+      const consultaId = response.idConsulta;
+
       setIsSubmitting(false);
+      setIsProcessingN8n(true);
+      setN8nSuccess(false);
+      setN8nError(null);
+
+      try {
+        const payload: N8nPayload = {
+          mensaje: question.trim(),
+          idConsulta: String(consultaId),
+          idUsuario: String(userId),
+          experiencia: user?.experiencia || "PRINCIPIANTE",
+        };
+
+        await api.triggerN8n(payload);
+        setN8nSuccess(true);
+      } catch (err: unknown) {
+        let errorData: N8nErrorResponse | null = null;
+        try {
+          const parsed = JSON.parse(err instanceof Error ? err.message : String(err));
+          errorData = Array.isArray(parsed) ? parsed[0] : parsed;
+        } catch {
+          errorData = null;
+        }
+        const errorMessage = err instanceof Error ? err.message : "Error desconocido";
+        setN8nError({
+          titulo: errorData?.titulo || "Error en n8n",
+          mensaje: errorData?.mensaje || errorMessage,
+          accion: errorData?.accion_recomendada || "Inténtalo nuevamente",
+        });
+      } finally {
+        setIsProcessingN8n(false);
+      }
+
+      router.push(`/result/${consultaId}`);
+    } catch (err: unknown) {
+      setIsSubmitting(false);
+      setError(err instanceof Error ? err.message : "Error al procesar la consulta");
     }
   };
 
@@ -137,21 +180,66 @@ export default function QueryPage() {
               <button
                 type="submit"
                 className="btn btn--primary btn--full btn--lg submit-btn flex items-center justify-center gap-2"
-                disabled={isSubmitting}
-                aria-busy={isSubmitting}
+                disabled={isSubmitting || isProcessingN8n}
+                aria-busy={isSubmitting || isProcessingN8n}
               >
                 <span className="btn-text flex items-center gap-2">
                   <Search className="w-5 h-5" aria-hidden="true" />
                   Buscar recomendaciones
                 </span>
-                {isSubmitting && (
+                {(isSubmitting || isProcessingN8n) && (
                   <span className="btn-loading flex items-center gap-2">
                     <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
-                    Analizando tu consulta...
+                    {isSubmitting ? "Enviando..." : "Procesando con IA..."}
                   </span>
                 )}
               </button>
             </form>
+
+            {isProcessingN8n && (
+              <div className="alert alert--info" role="status" style={{ marginTop: "1rem" }}>
+                <div className="alert__icon">
+                  <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
+                </div>
+                <div className="alert__content">
+                  <div className="alert__title">Procesando con IA...</div>
+                  <div className="alert__message">Analizando tu consulta y buscando las mejores recomendaciones</div>
+                </div>
+              </div>
+            )}
+
+            {n8nSuccess && (
+              <div className="alert alert--success" role="status" style={{ marginTop: "1rem" }}>
+                <div className="alert__icon">
+                  <CheckCircle className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div className="alert__content">
+                  <div className="alert__title">Consulta enviada correctamente</div>
+                  <div className="alert__message">La IA está procesando tu solicitud. Serás redirigido a los resultados.</div>
+                </div>
+              </div>
+            )}
+
+            {n8nError && (
+              <div className="alert alert--error" role="alert" style={{ marginTop: "1rem" }}>
+                <div className="alert__icon">
+                  <AlertCircle className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div className="alert__content">
+                  <div className="alert__title">{n8nError.titulo}</div>
+                  <div className="alert__message">{n8nError.mensaje}</div>
+                </div>
+                <div className="alert__action">
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => setN8nError(null)}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

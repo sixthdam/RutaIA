@@ -1,6 +1,6 @@
 # RutaIA
 
-**AI-powered route planning platform** — Next.js 14 + Spring Boot 3 + MySQL 8.4
+**AI-powered route planning platform** — Next.js 16 + Spring Boot 3 + MySQL 8.4
 
 ## Quick Start (3 Terminals)
 
@@ -122,6 +122,7 @@ services:
       - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://backend:8080
+      NEXT_PUBLIC_N8N_WEBHOOK_URL: https://your-n8n-instance.com/webhook/consulta
     depends_on:
       - backend
 
@@ -152,7 +153,7 @@ spring.datasource.username=usr_api_service
 spring.datasource.password=BackendPass123!
 ```
 
-## Frontend (Next.js 14, App Router, TypeScript, Tailwind)
+## Frontend (Next.js 16, App Router, TypeScript, Tailwind CSS v4)
 
 ### Commands
 
@@ -165,12 +166,35 @@ npm run start        # Production server
 npm run lint         # ESLint check
 ```
 
-### Environment Variable
+### Environment Variables
 
 Create `.env.local` in `frontend/` if needed:
+
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8080
+NEXT_PUBLIC_N8N_WEBHOOK_URL=https://your-n8n-instance.com/webhook/consulta
 ```
+
+### n8n Integration
+
+The frontend triggers n8n webhook after creating a consulta:
+
+1. User submits query → `POST /api/consultas` → returns `idConsulta`
+2. Frontend shows "Procesando con IA..." banner
+3. Calls `POST <N8N_WEBHOOK_URL>` with payload:
+   ```json
+   {
+     "mensaje": "user query",
+     "idConsulta": "123",
+     "idUsuario": "456",
+     "experiencia": "PRINCIPIANTE"
+   }
+   ```
+4. n8n processes asynchronously (backend handles auth via `n8n.api-key`)
+5. Frontend shows success/error alerts with auto-dismiss (10s)
+6. Navigates to `/result/{idConsulta}` — polls/awaits recommendation from backend
+
+**Auth:** Frontend sends NO token to n8n. Backend configures `n8n.api-key` in n8n node.
 
 ## Environment Variables
 
@@ -181,6 +205,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8080
 | `SPRING_DATASOURCE_USERNAME` | `usr_api_service` | DB user |
 | `SPRING_DATASOURCE_PASSWORD` | `BackendPass123!` | DB password |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8080` | Frontend → Backend API base |
+| `NEXT_PUBLIC_N8N_WEBHOOK_URL` | `https://your-n8n-instance.com/webhook/consulta` | n8n webhook for AI processing |
 
 ## Project Structure
 
@@ -190,17 +215,82 @@ RutaIA/
 │   ├── src/main/java/...
 │   ├── pom.xml
 │   └── mvnw
-├── frontend/          # Next.js 14 (App Router, TS, Tailwind)
+├── frontend/          # Next.js 16 (App Router, TS, Tailwind v4)
 │   ├── app/           # Routes & Server Components
-│   ├── components/    # UI (shadcn/ui)
-│   ├── lib/           # API, auth, utils
+│   │   ├── query/            # AI query form + n8n trigger
+│   │   ├── result/[id]/      # Recommendation + sources + rating
+│   │   ├── history/          # User consultation history
+│   │   ├── stats/            # Personal statistics (via /api/stats)
+│   │   ├── catalog/          # Course catalog with filters
+│   │   ├── login/            # Login form
+│   │   └── register/         # Registration (POST /auth/register)
+│   ├── components/
+│   │   ├── ui/               # shadcn/ui primitives (Button, etc.)
+│   │   ├── layout/           # Header, Footer, MainLayout
+│   │   ├── loading/          # Skeleton, InitialLoader
+│   │   └── ErrorBoundary.tsx # Global error boundary
+│   ├── lib/
+│   │   ├── api/
+│   │   │   ├── service.ts    # ApiService (JWT, interceptors, n8n trigger)
+│   │   │   └── config.ts     # Endpoints & constants
+│   │   ├── auth/AuthContext.tsx # Auth state (React Context + useSyncExternalStore)
+│   │   ├── gsap.ts           # Centralized GSAP + ScrollTrigger
+│   │   └── utils/            # date, cn (clsx + tailwind-merge)
 │   ├── package.json
 │   └── tsconfig.json
 ├── database/
 │   └── Database.sql   # MySQL 8.4 init script
 ├── docker-compose.yml # Full stack (requires Dockerfiles)
+├── .env.example       # Frontend env template
 └── README.md
 ```
+
+## API Endpoints (Frontend)
+
+### Auth
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/auth/login` | ❌ | Login, returns JWT + user ID + role |
+| POST | `/auth/register` | ❌ | Register student (role defaults to ESTUDIANTE) |
+
+### Consultas
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/consultas` | ✅ | Create consulta (triggers n8n) |
+| GET | `/api/consultas` | ✅ | List all (admin) |
+| GET | `/api/consultas?idUsuario={id}` | ✅ | **TODO** — List by user (history/stats) |
+| GET | `/api/consultas/{id}` | ✅ | Get single consulta |
+| GET | `/api/consultas/{id}/recomendacion` | ✅ | **TODO** — Get recommendation for consulta |
+
+### Recomendaciones
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/recomendaciones` | ✅ | List all |
+| GET | `/api/recomendaciones/{id}` | ✅ | Get single |
+
+### Fuentes
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/fuentes/recomendacion/{id}` | ✅ | Sources for recommendation |
+
+### Calificaciones
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/calificaciones` | ✅ | Create/update rating |
+| GET | `/api/calificaciones/{id}` | ✅ | Get rating |
+
+### Enums
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/enums/dificultades` | ❌ | Course difficulties |
+| GET | `/api/enums/roles` | ❌ | User roles |
+| GET | `/api/enums/experiencias` | ❌ | Experience levels |
+| GET | `/api/enums/estados` | ❌ | Consulta states |
+
+### Stats
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/stats` | ✅ | **TODO** — Personal statistics |
 
 ## Troubleshooting
 
@@ -209,3 +299,5 @@ RutaIA/
 - **Enum typo fixed** — `'AVANZADO'` (was `'AVANZADO\t'`).
 - **Access denied** — Ensure container has `-p 3307:3306` and user `usr_api_service@'%'` exists.
 - **Frontend can't reach backend** — Verify `NEXT_PUBLIC_API_URL` and backend running on 8080.
+- **n8n webhook fails** — Check `NEXT_PUBLIC_N8N_WEBHOOK_URL`, ensure backend configured `n8n.api-key` in n8n node.
+- **Stats/History empty** — Backend endpoints `GET /api/stats`, `GET /api/consultas?idUsuario={id}`, `GET /api/consultas/{id}/recomendacion` not yet implemented (ETA ~3h).

@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useSyncExternalStore } from "react";
-import { api, UserData, UserResponse } from "@/lib/api/service";
+import { api, UserData } from "@/lib/api/service";
+import { useRouter } from "next/navigation";
 
 interface AuthContextType {
   user: UserData | null;
@@ -21,12 +22,10 @@ interface RegisterData {
   contrasenia: string;
   experiencia: string;
   areaInteres?: string;
-  rol: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Sync external store for localStorage to avoid hydration mismatch
 function createAuthStore() {
   let user: UserData | null = null;
   const subscribers = new Set<() => void>();
@@ -66,6 +65,7 @@ async function fetchUserDetails(idUsuario: number): Promise<UserData> {
       role: userDetails.role,
       nombre: userDetails.nombre,
       correo: userDetails.correo,
+      experiencia: userDetails.experiencia || "PRINCIPIANTE",
     };
   } catch {
     return {
@@ -73,6 +73,7 @@ async function fetchUserDetails(idUsuario: number): Promise<UserData> {
       role: "ESTUDIANTE",
       nombre: "Usuario",
       correo: "",
+      experiencia: "PRINCIPIANTE",
     };
   }
 }
@@ -84,10 +85,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authStore.getServerSnapshot
   );
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   const refreshUser = useCallback(() => {
     const userData = api.getUser();
-    authStore.setUser(userData);
+    if (userData?.idUsuario) {
+      fetchUserDetails(userData.idUsuario).then((fullUser) => {
+        authStore.setUser(fullUser);
+      });
+    } else {
+      authStore.setUser(userData);
+    }
   }, []);
 
   useEffect(() => {
@@ -102,8 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (data: RegisterData) => {
-    await api.register(data);
-    const response = await api.login(data.correo, data.contrasenia);
+    const response = await api.register(data);
     const userData = await fetchUserDetails(response.idUsuario);
     authStore.setUser(userData);
   };
@@ -111,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     api.logout();
     authStore.setUser(null);
+    router.push("/");
   };
 
   const getUserId = () => user?.idUsuario || null;

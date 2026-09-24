@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { gsap } from "gsap";
+import { gsap } from "@/lib/gsap";
 import { AlertCircle, ChevronLeft, ExternalLink, Loader2 } from "lucide-react";
 import { api, CONFIG, Recommendation, Source, Course, CalificacionRequest, CalificacionResponse } from "@/lib/api/service";
 
-export default function ResultPage({ params }: { params: Promise<{ id: string }> }) {
+export default function ResultPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const consultaId = parseInt(id || "0", 10);
@@ -28,11 +28,6 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
   const ratingRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const { ScrollTrigger } = require("gsap/ScrollTrigger");
-    gsap.registerPlugin(ScrollTrigger);
-  }, []);
-
-  useEffect(() => {
     if (!consultaId) return;
 
     const fetchData = async () => {
@@ -41,33 +36,37 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
         setQuestion(consulta.pregunta);
 
         try {
-          const rec = await api.getRecomendacionByConsulta(consultaId);
-          setRecommendation(rec);
+          const [rec, calif] = await Promise.allSettled([
+            api.getRecomendacionByConsulta(consultaId), // TODO: Backend to implement GET /api/consultas/{id}/recomendacion
+            api.getCalificacion(consultaId).catch(() => null),
+          ]);
 
-          try {
-            const fuentes = await api.getFuentesByRecomendacion(rec.idRecomendacion);
-            const fuentesConCurso = await Promise.all(
-              fuentes.map(async (f) => {
-                try {
-                  const curso = await api.getCurso(f.idCurso);
-                  return { ...f, curso };
-                } catch {
-                  return f;
-                }
-              })
-            );
-            setSources(fuentesConCurso);
-          } catch {
-            setSources([]);
+          if (rec.status === "fulfilled") {
+            const recommendationData = rec.value;
+            setRecommendation(recommendationData);
+
+            try {
+              const fuentes = await api.getFuentesByRecomendacion(recommendationData.idRecomendacion);
+              const fuentesConCurso = await Promise.all(
+                fuentes.map(async (f) => {
+                  try {
+                    const curso = await api.getCurso(f.idCurso);
+                    return { ...f, curso };
+                  } catch {
+                    return f;
+                  }
+                })
+              );
+              setSources(fuentesConCurso);
+            } catch {
+              setSources([]);
+            }
           }
 
-          try {
-            const calif = await api.getCalificacion(rec.idRecomendacion);
-            setExistingRating(calif);
-            setRating(calif.calificacion);
-            setComment(calif.comentario || "");
-          } catch {
-            // No rating yet
+          if (calif.status === "fulfilled" && calif.value) {
+            setExistingRating(calif.value);
+            setRating(calif.value.calificacion);
+            setComment(calif.value.comentario || "");
           }
         } catch {
           // No recommendation yet
@@ -110,9 +109,9 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
                 start: "top 85%",
                 toggleActions: "play none none reverse",
               },
-            }
-          ),
-            "-=0.3";
+            },
+            "-=0.3"
+          );
         }
 
         if (ratingRef.current) {
@@ -130,9 +129,9 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
                 start: "top 85%",
                 toggleActions: "play none none reverse",
               },
-            }
-          ),
-            "-=0.3";
+            },
+            "-=0.3"
+          );
         }
 
         // Animate similarity bars
@@ -320,7 +319,7 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
             </div>
             <div className="card__body">
               <div id="sourcesList" className="sources-list" role="list">
-                {sources.map((source, index) => (
+                {sources.map((source) => (
                   <article key={source.idFuente} className="source-card" role="listitem">
                     <div className="source-card__header">
                       <div className="source-card__info">
