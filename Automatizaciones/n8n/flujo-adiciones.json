@@ -1,17 +1,6 @@
 {
   "nodes": [
     {
-      "parameters": {},
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
-      "position": [
-        16,
-        16
-      ],
-      "id": "c1b35841-af64-4c82-a9d6-4ba7147f2f72",
-      "name": "When clicking ‘Execute workflow’"
-    },
-    {
       "parameters": {
         "method": "POST",
         "url": "https://openrouter.ai/api/v1/embeddings",
@@ -187,34 +176,6 @@
       "parameters": {
         "options": {}
       },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        1168,
-        144
-      ],
-      "id": "c41c9de6-0876-4a6c-af32-ae1d857e0e59",
-      "name": "Respuesta a errores previos a embeddings"
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "{\n  \"estado\": \"ok\",\n  \"mensaje\": \"Cursos guardados correctamente. Ya puedes actualizar esta página.\"\n}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        1360,
-        -464
-      ],
-      "id": "aefdefce-bde3-453c-89fb-7f006ccbbe64",
-      "name": "Éxito al guardar la información"
-    },
-    {
-      "parameters": {
-        "options": {}
-      },
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
@@ -279,19 +240,6 @@
     },
     {
       "parameters": {
-        "options": {}
-      },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        1904,
-        112
-      ],
-      "id": "e4ee909e-2776-4266-9695-4405e1d55af0",
-      "name": "Respuesta a errores posteriores a embeddings"
-    },
-    {
-      "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
@@ -325,20 +273,39 @@
       ],
       "id": "1ed296f1-7166-4a0f-ad22-50073de21c7d",
       "name": "If"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fff69f72-d741-4013-baff-e69cfcdabcbd",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        16,
+        16
+      ],
+      "id": "407ca48c-1ca0-48f8-9e64-8c000b3f4c30",
+      "name": "Webhook",
+      "webhookId": "fff69f72-d741-4013-baff-e69cfcdabcbd"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      estado: \"ok\",\n      mensaje: \"Cursos guardados correctamente.\"\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        -464
+      ],
+      "id": "ebe4ce5f-b3bd-4fd7-995f-d6eb7148a411",
+      "name": "Éxito al guardar la información"
     }
   ],
   "connections": {
-    "When clicking ‘Execute workflow’": {
-      "main": [
-        [
-          {
-            "node": "Consulta a la base de datos",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "generar embedding": {
       "main": [
         [
@@ -431,13 +398,7 @@
     },
     "Error en la consulta SQL": {
       "main": [
-        [
-          {
-            "node": "Respuesta a errores previos a embeddings",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Consulta a la base de datos": {
@@ -460,24 +421,12 @@
     },
     "Error en la consulta de Qdrant": {
       "main": [
-        [
-          {
-            "node": "Respuesta a errores previos a embeddings",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Error al crear la colección": {
       "main": [
-        [
-          {
-            "node": "Respuesta a errores previos a embeddings",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Loop de cursos": {
@@ -511,35 +460,17 @@
     },
     "Error al guardar en Qdrant": {
       "main": [
-        [
-          {
-            "node": "Respuesta a errores posteriores a embeddings",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Error al preparar puntos": {
       "main": [
-        [
-          {
-            "node": "Respuesta a errores posteriores a embeddings",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Error al generar embedding": {
       "main": [
-        [
-          {
-            "node": "Respuesta a errores posteriores a embeddings",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "If": {
@@ -554,6 +485,17 @@
         [
           {
             "node": "crear colecciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Consulta a la base de datos",
             "type": "main",
             "index": 0
           }
