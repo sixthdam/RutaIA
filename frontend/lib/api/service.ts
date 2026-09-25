@@ -53,10 +53,16 @@ class ApiService {
       },
     };
 
-    try {
+    const makeRequest = async (retryCount = 0): Promise<T> => {
       const response = await fetch(url, config);
 
       if (response.status === 401 && auth) {
+        // Retry once after a short delay if token might not be ready yet
+        if (retryCount === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+          return makeRequest(1);
+        }
+        // After retry, clear token and redirect
         this.clearToken();
         if (typeof window !== "undefined") {
           // eslint-disable-next-line @next/next/no-location-assign-relative-destination
@@ -78,6 +84,10 @@ class ApiService {
       }
 
       return await response.json();
+    };
+
+    try {
+      return await makeRequest();
     } catch (error) {
       if (error instanceof TypeError && error.message.includes("fetch")) {
         throw new Error("No se pudo conectar al servidor. Verifica tu conexión.");
