@@ -10,6 +10,11 @@ import java.util.List;
 @Repository
 public interface ConsultaRepository extends JpaRepository<Consulta, Integer> {
     List<Consulta> findByUsuarioIdUsuario(Integer idUsuario);
+
     long countByEstado(EstadoConsultaEnum estado);
     List<Consulta> findTop10ByOrderByFechaDescIdConsultaDesc();
+
+    long countByUsuarioIdUsuario(Integer idUsuario);
+    long countByEstadoAndUsuarioIdUsuario(EstadoConsultaEnum estado, Integer idUsuario);
+    List<Consulta> findTop10ByUsuarioIdUsuarioOrderByFechaDescIdConsultaDesc(Integer idUsuario);
 }

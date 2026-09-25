@@ -23,7 +23,7 @@ export default function StatsPage() {
     }
     const fetchData = async () => {
       try {
-        const data = await api.getStats();
+        const data = await api.getStats(userId);
         setStats(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al cargar estadísticas");

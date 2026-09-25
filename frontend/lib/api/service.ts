@@ -243,8 +243,9 @@ class ApiService {
     return this.get<CalificacionResponse[]>(CONFIG.ENDPOINTS.CALIFICACIONES);
   }
 
-  async getStats(): Promise<StatsResponse> {
-    return this.get<StatsResponse>(CONFIG.ENDPOINTS.STATS);
+  async getStats(userId?: number): Promise<StatsResponse> {
+    const endpoint = userId ? `${CONFIG.ENDPOINTS.STATS}?userId=${userId}` : CONFIG.ENDPOINTS.STATS;
+    return this.get<StatsResponse>(endpoint);
   }
 
   // n8n integration
