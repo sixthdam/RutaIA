@@ -6,9 +6,18 @@ interface RequestOptions extends RequestInit {
 
 class ApiService {
   private baseUrl: string;
+  private isLoginFlow = false;
 
   constructor() {
     this.baseUrl = CONFIG.API_BASE_URL;
+  }
+
+  private setLoginFlow(active: boolean): void {
+    this.isLoginFlow = active;
+    if (active) {
+      // Reset after 2 seconds
+      setTimeout(() => { this.isLoginFlow = false; }, 2000);
+    }
   }
 
   private getToken(): string | null {
@@ -53,20 +62,18 @@ class ApiService {
       },
     };
 
-    const makeRequest = async (retryCount = 0): Promise<T> => {
+    try {
       const response = await fetch(url, config);
 
       if (response.status === 401 && auth) {
-        // Retry once after a short delay if token might not be ready yet
-        if (retryCount === 0) {
-          await new Promise((resolve) => setTimeout(resolve, 150));
-          return makeRequest(1);
+        // Don't logout during login flow - just throw error
+        if (this.isLoginFlow) {
+          throw new Error("Sesión expirada. Por favor inicia sesión nuevamente.");
         }
-        // After retry, clear token and redirect
         this.clearToken();
         if (typeof window !== "undefined") {
-          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-          window.location.href = "/login";
+          const { dispatchAuthEvent } = await import('@/lib/auth/events');
+          dispatchAuthEvent('LOGOUT');
         }
         throw new Error("Sesión expirada. Por favor inicia sesión nuevamente.");
       }
@@ -84,10 +91,6 @@ class ApiService {
       }
 
       return await response.json();
-    };
-
-    try {
-      return await makeRequest();
     } catch (error) {
       if (error instanceof TypeError && error.message.includes("fetch")) {
         throw new Error("No se pudo conectar al servidor. Verifica tu conexión.");
@@ -124,6 +127,8 @@ class ApiService {
     const data = await this.post<LoginResponse>(CONFIG.ENDPOINTS.AUTH.LOGIN, { correo, password }, false);
     if (data.token) {
       this.setToken(data.token);
+      // Set login flow flag to prevent 401 redirect during post-login API calls
+      this.setLoginFlow(true);
       if (typeof window !== "undefined") {
         localStorage.setItem(CONFIG.STORAGE_KEYS.USER, JSON.stringify({
           idUsuario: data.idUsuario,
@@ -137,7 +142,13 @@ class ApiService {
   }
 
   async register(usuario: RegisterRequest): Promise<AuthResponse> {
-    return this.post<AuthResponse>(CONFIG.ENDPOINTS.AUTH.REGISTER, usuario, false);
+    const data = await this.post<AuthResponse>(CONFIG.ENDPOINTS.AUTH.REGISTER, usuario, false);
+    if (data.token) {
+      this.setToken(data.token);
+      // Set login flow flag to prevent 401 redirect during post-register API calls
+      this.setLoginFlow(true);
+    }
+    return data;
   }
 
   logout(): void {

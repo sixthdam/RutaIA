@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { gsap } from "@/lib/gsap";
-import { ScrollTrigger } from "@/lib/gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ArrowRight, Zap, Shield, Users } from "lucide-react";
 
 

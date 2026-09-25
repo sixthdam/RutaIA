@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { gsap } from "@/lib/gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { AlertCircle, ChevronLeft, ExternalLink, Clock } from "lucide-react";
 import { api, ConsultaResponse, Recommendation, Source, Course, CalificacionResponse } from "@/lib/api/service";
 import { formatDate } from "@/lib/utils/date";
