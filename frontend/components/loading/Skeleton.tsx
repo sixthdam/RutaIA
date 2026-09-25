@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { gsap } from "@/lib/gsap";
 
 interface SkeletonProps {
@@ -19,13 +19,6 @@ const skeletonStyle = `
 }
 `;
 
-if (typeof window !== "undefined") {
-  const style = document.createElement("style");
-  style.textContent = skeletonStyle;
-  style.setAttribute("data-skeleton", "true");
-  document.head.appendChild(style);
-}
-
 const baseStyle: React.CSSProperties = {
   background: "linear-gradient(90deg, var(--color-border) 25%, var(--color-bg-muted) 50%, var(--color-border) 75%)",
   backgroundSize: "200% 100%",
@@ -36,8 +29,20 @@ const baseStyle: React.CSSProperties = {
 export function Skeleton({ className = "", variant = "text", lines = 1 }: SkeletonProps) {
   const divRef = useRef<HTMLDivElement>(null);
   const trRef = useRef<HTMLTableRowElement>(null);
+  const [styleInjected, setStyleInjected] = useState(false);
 
   const ref = variant === "table-row" ? trRef : divRef;
+
+  useEffect(() => {
+    if (!styleInjected) {
+      const style = document.createElement("style");
+      style.textContent = skeletonStyle;
+      style.setAttribute("data-skeleton", "true");
+      document.head.appendChild(style);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStyleInjected(true);
+    }
+  }, [styleInjected]);
 
   useEffect(() => {
     if (!ref.current) return;

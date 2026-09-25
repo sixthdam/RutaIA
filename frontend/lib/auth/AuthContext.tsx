@@ -84,7 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authStore.getSnapshot,
     authStore.getServerSnapshot
   );
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
   const router = useRouter();
 
   const refreshUser = useCallback(() => {
@@ -99,6 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHydrated(true);
     const timer = setTimeout(() => setIsLoading(false), 150);
     return () => clearTimeout(timer);
   }, []);
@@ -122,8 +125,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const getUserId = () => user?.idUsuario || null;
-
   const userName = user?.nombre || null;
+
+  // During SSR and initial hydration, show loading state
+  if (!hydrated) {
+    return (
+      <AuthContext.Provider value={{ user: null, isAuthenticated: false, isLoading: true, login: async () => {}, register: async () => {}, logout: () => {}, refreshUser: () => {}, userName: null, getUserId: () => null }}>
+        {children}
+      </AuthContext.Provider>
+    );
+  }
 
   return (
     <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, register, logout, refreshUser, userName, getUserId }}>
