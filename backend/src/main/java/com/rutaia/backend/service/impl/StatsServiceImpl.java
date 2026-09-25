@@ -7,7 +7,9 @@ import com.rutaia.backend.modelo.enums.EstadoConsultaEnum;
 import com.rutaia.backend.repositorio.CalificacionRepository;
 import com.rutaia.backend.repositorio.ConsultaRepository;
 import com.rutaia.backend.repositorio.FuenteRepository;
+import com.rutaia.backend.repositorio.UsuarioRepository;
 import com.rutaia.backend.service.StatsService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -24,33 +26,54 @@ public class StatsServiceImpl implements StatsService {
     private final ConsultaRepository consultaRepository;
     private final CalificacionRepository calificacionRepository;
     private final FuenteRepository fuenteRepository;
+    private final UsuarioRepository usuarioRepository;
     private final ConsultaMapper consultaMapper;
 
     @Override
     @Transactional(readOnly = true)
-    public StatsResponseDTO obtenerEstadisticas() {
+    public StatsResponseDTO obtenerEstadisticas(Integer idUsuario) {
 
-        // Un contador por cada estado, incluso si es 0
-        Map<String, Long> distribucionEstados = new LinkedHashMap<>();
-        for (EstadoConsultaEnum estado : EstadoConsultaEnum.values()) {
-            distribucionEstados.put(estado.name(), consultaRepository.countByEstado(estado));
+        if (idUsuario != null && !usuarioRepository.existsById(idUsuario)) {
+            throw new EntityNotFoundException("Usuario no encontrado con ID: " + idUsuario);
         }
 
-        // Promedio de calificaciones (0.0 si aún no hay ninguna), con 2 decimales
-        Double promedio = calificacionRepository.promedioCalificacion();
+        boolean global = idUsuario == null;
+
+        // 1. Conteo total y por estado
+        long totalConsultas;
+        Map<String, Long> distribucionEstados = new LinkedHashMap<>();
+        for (EstadoConsultaEnum estado : EstadoConsultaEnum.values()) {
+            long cantidad = global
+                    ? consultaRepository.countByEstado(estado)
+                    : consultaRepository.countByEstadoAndUsuarioIdUsuario(estado, idUsuario);
+            distribucionEstados.put(estado.name(), cantidad);
+        }
+        totalConsultas = global
+                ? consultaRepository.count()
+                : consultaRepository.countByUsuarioIdUsuario(idUsuario);
+
+        // 2. Promedio de calificaciones (0.0 si aún no hay ninguna), con 2 decimales
+        Double promedio = global
+                ? calificacionRepository.promedioCalificacion()
+                : calificacionRepository.promedioCalificacionPorUsuario(idUsuario);
         double calificacionPromedio = promedio == null ? 0.0 : Math.round(promedio * 100.0) / 100.0;
 
-        // Curso que más veces aparece como fuente (null si no hay recomendaciones)
-        List<String> top = fuenteRepository.cursosMasRecomendados(PageRequest.of(0, 1));
+        // 3. Curso que más veces aparece como fuente (null si no hay recomendaciones)
+        List<String> top = global
+                ? fuenteRepository.cursosMasRecomendados(PageRequest.of(0, 1))
+                : fuenteRepository.cursosMasRecomendadosPorUsuario(idUsuario, PageRequest.of(0, 1));
         String cursoMasRecomendado = top.isEmpty() ? null : top.get(0);
 
-        List<ConsultaResponseDTO> actividadReciente = consultaRepository
-                .findTop10ByOrderByFechaDescIdConsultaDesc().stream()
+        // 4. Actividad reciente (10 más nuevas)
+        List<ConsultaResponseDTO> actividadReciente = (global
+                ? consultaRepository.findTop10ByOrderByFechaDescIdConsultaDesc()
+                : consultaRepository.findTop10ByUsuarioIdUsuarioOrderByFechaDescIdConsultaDesc(idUsuario))
+                .stream()
                 .map(consultaMapper::toResponseDTO)
                 .toList();
 
         return new StatsResponseDTO(
-                consultaRepository.count(),
+                totalConsultas,
                 distribucionEstados.get(EstadoConsultaEnum.RESPONDIDA.name()),
                 distribucionEstados.get(EstadoConsultaEnum.SIN_RESULTADOS.name()),
                 calificacionPromedio,
