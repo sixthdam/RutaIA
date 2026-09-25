@@ -26,7 +26,7 @@ export default function HistoryPage() {
     }
     const fetchData = async () => {
       try {
-        const data = await api.getConsultasByUsuario(userId); // TODO: Backend to implement GET /api/consultas?idUsuario={id}
+        const data = await api.getConsultasByUsuario(userId);
         setConsultas(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al cargar historial");
