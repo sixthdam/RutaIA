@@ -23,6 +23,7 @@ export default function ResultPage() {
   const [ratingError, setRatingError] = useState("");
   const [ratingSuccess, setRatingSuccess] = useState(false);
   const [existingRating, setExistingRating] = useState<CalificacionResponse | null>(null);
+  const [sinResultados, setSinResultados] = useState<{mensaje: string;contactar_asesor: boolean;} | null>(null);
 
   const recommendationRef = useRef<HTMLDivElement>(null);
   const sourcesRef = useRef<HTMLDivElement>(null);
@@ -33,6 +34,15 @@ export default function ResultPage() {
 
     const fetchData = async () => {
       try {
+        const mensajeGuardado = sessionStorage.getItem(
+          `n8nSinResultados_${consultaId}`
+        );
+
+        if (mensajeGuardado) {
+          setSinResultados(JSON.parse(mensajeGuardado));
+          sessionStorage.removeItem(`n8nSinResultados_${consultaId}`);
+        }
+
         const consulta = await api.getConsulta(consultaId);
         setQuestion(consulta.pregunta);
 
@@ -252,18 +262,43 @@ export default function ResultPage() {
         <div className="container">
           <header className="page-header">
             <h1 className="page-title">Resultado de tu Consulta</h1>
-            <p className="page-subtitle" id="resultQuestion">{question}</p>
+            <p className="page-subtitle" id="resultQuestion">
+              {question}
+            </p>
           </header>
+
           <div className="empty-state" role="status">
             <div className="empty-state__icon" aria-hidden="true">
-              <svg className="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <svg
+                className="w-10 h-10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
             </div>
-            <h3 className="empty-state__title">No se encontraron resultados</h3>
-            <p className="empty-state__message">Intenta reformular tu consulta con más detalles o diferentes palabras clave</p>
-            <button className="btn btn--primary" onClick={handleNewQuery}>Nueva consulta</button>
+
+            <h3 className="empty-state__title">
+              No encontramos un curso adecuado
+            </h3>
+
+            <p className="empty-state__message">
+              {sinResultados?.mensaje ??
+                "No se encontraron resultados para tu consulta."}
+            </p>
+
+            {sinResultados?.contactar_asesor && (
+              <p className="empty-state__message">
+                Puedes contactar con un asesor para encontrar una opción adecuada.
+              </p>
+            )}
+
+            <button className="btn btn--primary" onClick={handleNewQuery}>
+              Nueva consulta
+            </button>
           </div>
         </div>
       </div>
@@ -304,7 +339,11 @@ export default function ResultPage() {
           </div>
           <div className="card__body">
             <div id="recommendationContent" className="recommendation-content">
-              {renderMarkdown(recommendation.contenido)}
+              {renderMarkdown(
+                recommendation.contenido ??
+                recommendation.respuesta ??
+                "No se encontró el contenido de la recomendación."
+              )}
             </div>
           </div>
         </section>
@@ -394,24 +433,46 @@ export default function ResultPage() {
               <form onSubmit={handleRatingSubmit} noValidate>
                 <fieldset className="mb-4" aria-label="Calificación de 1 a 5 estrellas">
                   <legend className="sr-only">Calificación</legend>
-                  <div className="star-rating star-rating--lg" role="radiogroup" aria-label="Calificación de 1 a 5 estrellas">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <label key={i} className="cursor-pointer">
-                        <input
-                          type="radio"
-                          name="rating"
-                          value={5 - i}
-                          checked={rating === 5 - i}
-                          onChange={() => setRating(5 - i)}
-                          className="sr-only"
-                          aria-label={`${5 - i} estrellas`}
-                        />
-                        <span className={rating !== null && rating >= 5 - i ? "filled" : "empty"} aria-hidden="true">★</span>
-                      </label>
-                    ))}
+                    <div
+                    className="star-rating star-rating--lg"
+                    role="radiogroup"
+                    aria-label="Calificación de 1 a 5 estrellas"
+                  >
+                    {Array.from({ length: 5 }).map((_, i) => {
+                      const value = i + 1;
+
+                      return (
+                        <label key={value} className="cursor-pointer">
+                          <input
+                            type="radio"
+                            name="rating"
+                            value={value}
+                            checked={rating === value}
+                            onChange={() => setRating(value)}
+                            className="sr-only"
+                            aria-label={`${value} estrellas`}
+                          />
+                          <span
+                            className={
+                              rating !== null && rating >= value
+                                ? "filled"
+                                : "empty"
+                            }
+                            style={{
+                              color:
+                                rating !== null && rating >= value
+                                  ? "#c9a227"
+                                  : "#d1d5db"
+                            }}
+                            aria-hidden="true"
+                          >
+                            ★
+                          </span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </fieldset>
-
                 <div className="form-group mb-4">
                   <label className="form-label" htmlFor="ratingComment">Comentario (opcional)</label>
                   <textarea

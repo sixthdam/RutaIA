@@ -359,7 +359,8 @@ export interface ConsultaResponse {
 export interface Recommendation {
   idRecomendacion: number;
   idConsulta: number;
-  contenido: string;
+  contenido?: string;
+  respuesta?: string;
   fechaGeneracion: string;
 }
 
@@ -397,10 +398,10 @@ export interface StatsResponse {
 
 // n8n types
 export interface N8nPayload {
-  mensaje: string;
+  pregunta: string;
   idConsulta: string;
   idUsuario: string;
-  experiencia: string;
+  nivel: string;
 }
 
 export interface N8nSuccessResponse {

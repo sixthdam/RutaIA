@@ -84,14 +84,42 @@ export default function QueryPage() {
       setN8nError(null);
 
       try {
+        const niveles = {
+          PRINCIPIANTE: "BASICO",
+          BASICO: "BASICO",
+          INTERMEDIO: "INTERMEDIO",
+          AVANZADO: "AVANZADO",
+        } as const;
+
+        const experiencia = user?.experiencia;
+
+        if (!experiencia || !(experiencia in niveles)) {
+          throw new Error("No se pudo determinar el nivel del usuario.");
+        }
+
         const payload: N8nPayload = {
-          mensaje: question.trim(),
+          pregunta: question.trim(),
           idConsulta: String(consultaId),
           idUsuario: String(userId),
-          experiencia: user?.experiencia || "PRINCIPIANTE",
+          nivel: niveles[experiencia as keyof typeof niveles],
         };
 
-        await api.triggerN8n(payload);
+        const n8nResponse = await api.triggerN8n(payload);
+
+        const responseData = Array.isArray(n8nResponse)
+          ? n8nResponse[0]
+          : n8nResponse;
+
+        if ("recomienda" in responseData && responseData.recomienda === false) {
+          sessionStorage.setItem(
+            `n8nSinResultados_${consultaId}`,
+            JSON.stringify({
+              mensaje: responseData.mensaje,
+              contactar_asesor: responseData.contactar_asesor,
+            })
+          );
+        }
+
         setN8nSuccess(true);
       } catch (err: unknown) {
         let errorData: N8nErrorResponse | null = null;
@@ -101,15 +129,24 @@ export default function QueryPage() {
         } catch {
           errorData = null;
         }
+        
         const errorMessage = err instanceof Error ? err.message : "Error desconocido";
         setN8nError({
           titulo: errorData?.titulo || "Error en n8n",
           mensaje: errorData?.mensaje || errorMessage,
           accion: errorData?.accion_recomendada || "Inténtalo nuevamente",
         });
-      } finally {
-        setIsProcessingN8n(false);
-      }
+
+        if (errorData) {
+          sessionStorage.setItem(
+            `n8nError_${consultaId}`,
+            JSON.stringify(errorData)
+          );
+        }
+
+        } finally {
+          setIsProcessingN8n(false);
+        }
 
       router.push(`/result/${consultaId}`);
     } catch (err: unknown) {
