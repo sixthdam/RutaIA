@@ -51,12 +51,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={`${inter.variable} ${playfair.variable} h-full antialiased`}>
+    <html lang="es" className={`${inter.variable} ${playfair.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
-      <body className="min-h-full flex flex-col bg-[var(--color-bg)] text-[var(--color-text)] font-sans">
+      <body className="min-h-full flex flex-col bg-[var(--color-bg)] text-[var(--color-text)] font-sans" suppressHydrationWarning>
         {children}
       </body>
     </html>

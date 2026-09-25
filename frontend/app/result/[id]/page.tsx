@@ -3,10 +3,10 @@
 import { ClientLayout } from "@/app/client-layout";
 import ResultPageContent from "./result-content";
 
-export default function ResultPage({ params }: { params: Promise<{ id: string }> }) {
+export default function ResultPage() {
   return (
     <ClientLayout>
-      <ResultPageContent params={params} />
+      <ResultPageContent />
     </ClientLayout>
   );
 }

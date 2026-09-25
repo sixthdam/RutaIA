@@ -1,19 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { gsap } from "gsap";
-import { Loader2, AlertCircle, BookOpen, CheckCircle, Search, Star, Info } from "lucide-react";
-import { api, ConsultaResponse } from "@/lib/api/service";
+import { gsap } from "@/lib/gsap";
+import { AlertCircle, BookOpen, CheckCircle, Search, Star, Info, TrendingUp } from "lucide-react";
+import { api, StatsResponse } from "@/lib/api/service";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { formatDateShort } from "@/lib/utils/date";
 
 export default function StatsPage() {
   const { getUserId } = useAuth();
-  useEffect(() => {
-    const { ScrollTrigger } = require("gsap/ScrollTrigger");
-    gsap.registerPlugin(ScrollTrigger);
-  }, []);
-  const [consultas, setConsultas] = useState<ConsultaResponse[]>([]);
+  const [stats, setStats] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,15 +17,16 @@ export default function StatsPage() {
   useEffect(() => {
     const userId = getUserId();
     if (!userId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       return;
     }
     const fetchData = async () => {
       try {
-        const data = await api.getConsultasByUsuario(userId);
-        setConsultas(data);
+        const data = await api.getStats(userId);
+        setStats(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Error al cargar historial");
+        setError(err instanceof Error ? err.message : "Error al cargar estadísticas");
       } finally {
         setLoading(false);
       }
@@ -49,13 +45,7 @@ export default function StatsPage() {
       }, statsRef);
       return () => ctx.revert();
     }
-  }, [loading]);
-
-  const total = consultas.length;
-  const respondidas = consultas.filter(c => c.estado === "RESPONDIDA").length;
-  const pendientes = consultas.filter(c => c.estado === "PENDIENTE").length;
-  const sinResultados = consultas.filter(c => c.estado === "SIN_RESULTADOS").length;
-  const errores = consultas.filter(c => c.estado === "ERROR").length;
+  }, [loading, stats]);
 
   if (loading) {
     return (
@@ -95,6 +85,29 @@ export default function StatsPage() {
     );
   }
 
+  if (!stats) {
+    return (
+      <div className="stats-page">
+        <div className="container">
+          <header className="page-header">
+            <h1 className="page-title">Estadísticas</h1>
+            <p className="page-subtitle">Resumen de tu actividad</p>
+          </header>
+          <div className="empty-state" role="status">
+            <div className="empty-state__icon" aria-hidden="true">
+              <Info className="w-10 h-10 text-[var(--color-info)]" />
+            </div>
+            <h3 className="empty-state__title">No hay estadísticas disponibles</h3>
+            <p className="empty-state__message">Cuando hagas tu primera consulta, aparecerán tus estadísticas aquí</p>
+            <a href="/query" className="btn btn--primary">Hacer primera consulta</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const { totalConsultas, consultasRespondidas, consultasSinResultados, calificacionPromedio, cursoMasRecomendado, distribucionEstados } = stats;
+
   return (
     <div className="stats-page">
       <div className="container">
@@ -113,7 +126,7 @@ export default function StatsPage() {
                   <BookOpen className="w-5 h-5" aria-hidden="true" />
                 </div>
                 <div className="stat-item__content">
-                  <div className="stat-item__value" style={{ fontFamily: "var(--font-serif)" }}>{total}</div>
+                  <div className="stat-item__value" style={{ fontFamily: "var(--font-serif)" }}>{totalConsultas}</div>
                   <div className="stat-item__label">Total de consultas</div>
                 </div>
               </div>
@@ -125,7 +138,7 @@ export default function StatsPage() {
                   <CheckCircle className="w-5 h-5" aria-hidden="true" />
                 </div>
                 <div className="stat-item__content">
-                  <div className="stat-item__value" style={{ fontFamily: "var(--font-serif)" }}>{respondidas}</div>
+                  <div className="stat-item__value" style={{ fontFamily: "var(--font-serif)" }}>{consultasRespondidas}</div>
                   <div className="stat-item__label">Respondidas</div>
                 </div>
               </div>
@@ -137,7 +150,7 @@ export default function StatsPage() {
                   <Search className="w-5 h-5" aria-hidden="true" />
                 </div>
                 <div className="stat-item__content">
-                  <div className="stat-item__value" style={{ fontFamily: "var(--font-serif)" }}>{sinResultados}</div>
+                  <div className="stat-item__value" style={{ fontFamily: "var(--font-serif)" }}>{consultasSinResultados}</div>
                   <div className="stat-item__label">Sin resultados</div>
                 </div>
               </div>
@@ -149,14 +162,48 @@ export default function StatsPage() {
                   <Star className="w-5 h-5" aria-hidden="true" />
                 </div>
                 <div className="stat-item__content">
-                  <div className="stat-item__value" style={{ fontFamily: "var(--font-serif)" }}>{pendientes}</div>
-                  <div className="stat-item__label">Pendientes</div>
+                  <div className="stat-item__value" style={{ fontFamily: "var(--font-serif)" }}>
+                    {calificacionPromedio > 0 ? calificacionPromedio.toFixed(1) : "—"}
+                  </div>
+                  <div className="stat-item__label">Calificación promedio</div>
                 </div>
               </div>
             </article>
           </div>
 
-          {total === 0 && (
+          {cursoMasRecomendado && (
+            <article className="stat-item card" style={{ marginTop: "1rem" }}>
+              <div className="card__body stat-item__body">
+                <div className="stat-item__icon" style={{ backgroundColor: "rgba(26, 26, 46, 0.1)", color: "var(--color-primary)" }}>
+                  <TrendingUp className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div className="stat-item__content">
+                  <div className="stat-item__label">Curso más recomendado</div>
+                  <div className="stat-item__value" style={{ fontFamily: "var(--font-serif)", fontSize: "1rem" }}>{cursoMasRecomendado}</div>
+                </div>
+              </div>
+            </article>
+          )}
+
+          {Object.keys(distribucionEstados).length > 0 && (
+            <div className="card" style={{ marginTop: "1.5rem" }}>
+              <div className="card__header">
+                <h3 className="card__title">Distribución por estado</h3>
+              </div>
+              <div className="card__body">
+                <div className="grid grid--3 gap-4">
+                  {Object.entries(distribucionEstados).map(([estado, count]) => (
+                    <div key={estado} className="stat-mini text-center">
+                      <div className="stat-mini__value" style={{ fontFamily: "var(--font-serif)", fontSize: "1.5rem" }}>{count}</div>
+                      <div className="stat-mini__label" style={{ textTransform: "capitalize" }}>{estado.toLowerCase()}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {totalConsultas === 0 && (
             <div className="empty-state" role="status">
               <div className="empty-state__icon" aria-hidden="true">
                 <Info className="w-10 h-10 text-[var(--color-info)]" />
