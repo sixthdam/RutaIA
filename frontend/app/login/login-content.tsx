@@ -1,17 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { gsap } from "gsap";
+import { gsap } from "@/lib/gsap";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2, AlertCircle, Mail, Lock, Eye, EyeOff, ChevronLeft } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 export default function LoginPage() {
-  useEffect(() => {
-    const { ScrollTrigger } = require("gsap/ScrollTrigger");
-    gsap.registerPlugin(ScrollTrigger);
-  }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);

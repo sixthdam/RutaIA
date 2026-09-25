@@ -1,32 +1,26 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { gsap } from "gsap";
+import { gsap } from "@/lib/gsap";
 import { Filter, X, Tag, Star, Clock } from "lucide-react";
 import { api, Course, Category } from "@/lib/api/service";
 import { Skeleton } from "@/components/loading/Skeleton";
 
 export default function CatalogPage() {
-  useEffect(() => {
-    const { ScrollTrigger } = require("gsap/ScrollTrigger");
-    gsap.registerPlugin(ScrollTrigger);
-  }, []);
   const [courses, setCourses] = useState<Course[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({ category: "", difficulty: "" });
   const [showFilters, setShowFilters] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== "undefined" && window.innerWidth >= 768);
 
   useEffect(() => {
-    setIsDesktop(window.innerWidth >= 768);
     const handleResize = () => setIsDesktop(window.innerWidth >= 768);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

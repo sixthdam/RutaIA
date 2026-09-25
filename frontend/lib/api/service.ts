@@ -6,9 +6,18 @@ interface RequestOptions extends RequestInit {
 
 class ApiService {
   private baseUrl: string;
+  private isLoginFlow = false;
 
   constructor() {
     this.baseUrl = CONFIG.API_BASE_URL;
+  }
+
+  private setLoginFlow(active: boolean): void {
+    this.isLoginFlow = active;
+    if (active) {
+      // Reset after 2 seconds
+      setTimeout(() => { this.isLoginFlow = false; }, 2000);
+    }
   }
 
   private getToken(): string | null {
@@ -56,18 +65,25 @@ class ApiService {
     try {
       const response = await fetch(url, config);
 
-      if (response.status === 401) {
+      if (response.status === 401 && auth) {
+        // Don't logout during login flow - just throw error
+        if (this.isLoginFlow) {
+          throw new Error("Sesión expirada. Por favor inicia sesión nuevamente.");
+        }
         this.clearToken();
         if (typeof window !== "undefined") {
-          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-          window.location.href = "/login";
+          const { dispatchAuthEvent } = await import('@/lib/auth/events');
+          dispatchAuthEvent('LOGOUT');
         }
         throw new Error("Sesión expirada. Por favor inicia sesión nuevamente.");
       }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+        const error = new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+        (error as Error & { status?: number; data?: unknown }).status = response.status;
+        (error as Error & { status?: number; data?: unknown }).data = errorData;
+        throw error;
       }
 
       if (response.status === 204) {
@@ -107,11 +123,12 @@ class ApiService {
     return this.request<T>(endpoint, { method: "DELETE", auth });
   }
 
-  // Auth
   async login(correo: string, password: string): Promise<LoginResponse> {
     const data = await this.post<LoginResponse>(CONFIG.ENDPOINTS.AUTH.LOGIN, { correo, password }, false);
     if (data.token) {
       this.setToken(data.token);
+      // Set login flow flag to prevent 401 redirect during post-login API calls
+      this.setLoginFlow(true);
       if (typeof window !== "undefined") {
         localStorage.setItem(CONFIG.STORAGE_KEYS.USER, JSON.stringify({
           idUsuario: data.idUsuario,
@@ -124,8 +141,14 @@ class ApiService {
     return data;
   }
 
-  async register(usuario: RegisterRequest): Promise<RegisterResponse> {
-    return this.post<RegisterResponse>(CONFIG.ENDPOINTS.USUARIOS, usuario, false);
+  async register(usuario: RegisterRequest): Promise<AuthResponse> {
+    const data = await this.post<AuthResponse>(CONFIG.ENDPOINTS.AUTH.REGISTER, usuario, false);
+    if (data.token) {
+      this.setToken(data.token);
+      // Set login flow flag to prevent 401 redirect during post-register API calls
+      this.setLoginFlow(true);
+    }
+    return data;
   }
 
   logout(): void {
@@ -157,7 +180,6 @@ class ApiService {
     return user?.nombre || null;
   }
 
-  // Enums
   async getDificultades(): Promise<string[]> {
     return this.get<string[]>(CONFIG.ENDPOINTS.ENUMS.DIFICULTADES);
   }
@@ -174,16 +196,10 @@ class ApiService {
     return this.get<string[]>(CONFIG.ENDPOINTS.ENUMS.ESTADOS);
   }
 
-  // Usuarios
-  async registerUsuario(usuario: RegisterRequest): Promise<UserResponse> {
-    return this.post<UserResponse>(CONFIG.ENDPOINTS.USUARIOS, usuario, false);
-  }
-
   async getUsuario(id: number): Promise<UserResponse> {
     return this.get<UserResponse>(`${CONFIG.ENDPOINTS.USUARIOS}/${id}`);
   }
 
-  // Cursos
   async getCursos(): Promise<Course[]> {
     return this.get<Course[]>(CONFIG.ENDPOINTS.CURSOS);
   }
@@ -200,12 +216,10 @@ class ApiService {
     return this.get<Course[]>(`${CONFIG.ENDPOINTS.CURSOS}?dificultad=${dificultad}`);
   }
 
-  // Categorias
   async getCategorias(): Promise<Category[]> {
     return this.get<Category[]>(CONFIG.ENDPOINTS.CATEGORIAS);
   }
 
-  // Consultas
   async createConsulta(consulta: ConsultaRequest): Promise<ConsultaResponse> {
     return this.post<ConsultaResponse>(CONFIG.ENDPOINTS.CONSULTAS, consulta);
   }
@@ -222,7 +236,6 @@ class ApiService {
     return this.get<ConsultaResponse[]>(`${CONFIG.ENDPOINTS.CONSULTAS}?idUsuario=${idUsuario}`);
   }
 
-  // Recomendaciones
   async getRecomendaciones(): Promise<Recommendation[]> {
     return this.get<Recommendation[]>(CONFIG.ENDPOINTS.RECOMENDACIONES);
   }
@@ -232,15 +245,13 @@ class ApiService {
   }
 
   async getRecomendacionByConsulta(idConsulta: number): Promise<Recommendation> {
-    return this.get<Recommendation>(`${CONFIG.ENDPOINTS.RECOMENDACIONES}/consulta/${idConsulta}`);
+    return this.get<Recommendation>(`${CONFIG.ENDPOINTS.CONSULTAS}/${idConsulta}/recomendacion`);
   }
 
-  // Fuentes
   async getFuentesByRecomendacion(idRecomendacion: number): Promise<Source[]> {
     return this.get<Source[]>(`${CONFIG.ENDPOINTS.FUENTES}/recomendacion/${idRecomendacion}`);
   }
 
-  // Calificaciones
   async createCalificacion(calificacion: CalificacionRequest): Promise<CalificacionResponse> {
     return this.post<CalificacionResponse>(CONFIG.ENDPOINTS.CALIFICACIONES, calificacion);
   }
@@ -253,21 +264,40 @@ class ApiService {
     return this.get<CalificacionResponse[]>(CONFIG.ENDPOINTS.CALIFICACIONES);
   }
 
-  // Stats
-  async getStats(): Promise<StatsResponse> {
-    return this.get<StatsResponse>("/api/stats");
+  async getStats(userId?: number): Promise<StatsResponse> {
+    const endpoint = userId ? `${CONFIG.ENDPOINTS.STATS}?userId=${userId}` : CONFIG.ENDPOINTS.STATS;
+    return this.get<StatsResponse>(endpoint);
+  }
+
+  // n8n integration
+  async triggerN8n(payload: N8nPayload): Promise<N8nResponse> {
+    const response = await fetch(CONFIG.N8N_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || (Array.isArray(data) && data[0]?.estado === "error") || data.estado === "error") {
+      const errorData = Array.isArray(data) ? data[0] : data;
+      throw new Error(JSON.stringify(errorData));
+    }
+
+    return data as N8nResponse;
   }
 }
 
 export const api = new ApiService();
 export { CONFIG } from "./config";
 
-// Types
 export interface LoginResponse {
   token: string;
   idUsuario: number;
   role: string;
 }
+
+export type AuthResponse = LoginResponse;
 
 export interface RegisterRequest {
   nombre: string;
@@ -275,16 +305,6 @@ export interface RegisterRequest {
   contrasenia: string;
   experiencia: string;
   areaInteres?: string;
-  rol: string;
-}
-
-export interface RegisterResponse {
-  idUsuario: number;
-  nombre: string;
-  correo: string;
-  experiencia: string;
-  areaInteres?: string;
-  role: string;
 }
 
 export interface UserData {
@@ -292,6 +312,7 @@ export interface UserData {
   role: string;
   nombre: string;
   correo: string;
+  experiencia: string;
 }
 
 export interface UserResponse {
@@ -338,7 +359,8 @@ export interface ConsultaResponse {
 export interface Recommendation {
   idRecomendacion: number;
   idConsulta: number;
-  contenido: string;
+  contenido?: string;
+  respuesta?: string;
   fechaGeneracion: string;
 }
 
@@ -361,6 +383,7 @@ export interface CalificacionResponse {
   recomendacion: Recommendation;
   calificacion: number;
   comentario?: string;
+  fecha?: string;
 }
 
 export interface StatsResponse {
@@ -372,3 +395,30 @@ export interface StatsResponse {
   distribucionEstados: Record<string, number>;
   actividadReciente: ConsultaResponse[];
 }
+
+// n8n types
+export interface N8nPayload {
+  pregunta: string;
+  idConsulta: string;
+  idUsuario: string;
+  nivel: string;
+}
+
+export interface N8nSuccessResponse {
+  ok: true;
+  recomienda: boolean;
+  mensaje: string;
+  contactar_asesor: boolean;
+}
+
+export interface N8nErrorResponse {
+  estado: "error";
+  titulo: string;
+  mensaje: string;
+  curso: null | unknown;
+  accion_recomendada: string;
+  puede_reintentar: boolean;
+  error_tecnico: string;
+}
+
+export type N8nResponse = N8nSuccessResponse | N8nErrorResponse | (N8nSuccessResponse | N8nErrorResponse)[];

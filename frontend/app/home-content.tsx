@@ -2,11 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { gsap } from "gsap";
+import { gsap } from "@/lib/gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ArrowRight, Zap, Shield, Users } from "lucide-react";
 
-gsap.registerPlugin(ScrollTrigger);
 
 export default function HomePageContent() {
   const heroRef = useRef<HTMLElement>(null);
