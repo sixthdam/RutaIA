@@ -276,23 +276,6 @@
     },
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "fff69f72-d741-4013-baff-e69cfcdabcbd",
-        "responseMode": "responseNode",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [
-        16,
-        16
-      ],
-      "id": "407ca48c-1ca0-48f8-9e64-8c000b3f4c30",
-      "name": "Webhook",
-      "webhookId": "fff69f72-d741-4013-baff-e69cfcdabcbd"
-    },
-    {
-      "parameters": {
         "jsCode": "return [\n  {\n    json: {\n      estado: \"ok\",\n      mensaje: \"Cursos guardados correctamente.\"\n    }\n  }\n];"
       },
       "type": "n8n-nodes-base.code",
@@ -303,6 +286,17 @@
       ],
       "id": "ebe4ce5f-b3bd-4fd7-995f-d6eb7148a411",
       "name": "Éxito al guardar la información"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        16
+      ],
+      "id": "2cc69f37-1024-49ca-99a2-8057d33a797c",
+      "name": "When clicking ‘Execute workflow’"
     }
   ],
   "connections": {
@@ -491,7 +485,7 @@
         ]
       ]
     },
-    "Webhook": {
+    "When clicking ‘Execute workflow’": {
       "main": [
         [
           {
