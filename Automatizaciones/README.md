@@ -1,121 +1,231 @@
-# RutaIA — Frontend
-
-Interfaz web desarrollada con Next.js (App Router) que consume exclusivamente la API REST del backend. El frontend nunca llama directamente a n8n, Qdrant u OpenRouter (RF 06).
-
+# RutaIA — Automatización (n8n + Qdrant)
+ 
+Documentación de los workflows de n8n y la configuración de Qdrant usados para la indexación de cursos y el flujo RAG de búsqueda.
+ 
 ## Índice
-
-- [Stack técnico](#stack-técnico)
-- [Rutas principales](#rutas-principales)
-- [Flujo de consulta](#flujo-de-consulta)
-- [Resultados](#resultados)
-- [Calificaciones](#calificaciones)
-- [Variables de entorno](#variables-de-entorno)
+ 
+- [Base de datos vectorial (Qdrant)](#base-de-datos-vectorial-qdrant)
+- [Flujo de almacenamiento en Qdrant](#flujo-de-almacenamiento-en-qdrant)
+- [Flujo RAG de búsqueda](#flujo-rag-de-búsqueda)
+- [Manejo de errores](#manejo-de-errores)
 - [Ejecución local](#ejecución-local)
 - [Troubleshooting](#troubleshooting)
-
-## Stack técnico
-
-- Next.js (App Router)
-- React
-- TypeScript
-- Tailwind CSS
-- GSAP
-- Lucide React
-
-## Rutas principales
-
-| Ruta | Descripción |
-|---|---|
-| `/login` | Inicio de sesión |
-| `/register` | Registro de estudiantes |
-| `/query` | Formulario de consulta en lenguaje natural |
-| `/result/[id]` | Resultado de una consulta específica |
-| `/history` | Historial de consultas del estudiante |
-| `/stats` | Estadísticas de la plataforma |
-| `/catalog` | Catálogo de cursos |
-
-## Flujo de consulta
-
-La página `/query` realiza, en orden:
-
-1. Valida la pregunta (no vacía).
-2. Registra la consulta en el backend: `POST /api/consultas`.
-3. Obtiene el `idConsulta` de la respuesta.
-4. Envía la pregunta al webhook de n8n (`NEXT_PUBLIC_N8N_WEBHOOK_URL`).
-5. Redirige a `/result/{idConsulta}`.
-
-La página de resultados consulta al backend (`GET /api/consultas/{id}/recomendacion`) para obtener la recomendación generada.
-
-## Resultados
-
-La página `/result/[id]` muestra:
-
-- La pregunta realizada.
-- La recomendación generada.
-- Los cursos utilizados como fuentes.
-- La similitud de cada fuente.
-- La calificación de la recomendación, si ya fue calificada.
-
-Cuando no existe un curso adecuado, se muestra el mensaje generado por n8n en lugar de un error.
-
-## Calificaciones
-
-Las recomendaciones pueden calificarse con valores de 1 a 5, una sola vez por recomendación.
-
-**Ejemplo de solicitud** (`POST /api/calificaciones`):
-
+## Base de datos vectorial (Qdrant)
+ 
+Qdrant almacena las representaciones numéricas (embeddings) de los cursos. Colección utilizada:
+ 
+```
+cursos
+```
+ 
+Configuración de la colección:
+ 
 ```json
 {
-  "idRecomendacion": 10,
-  "calificacion": 5
+  "vectors": {
+    "size": 1024,
+    "distance": "Cosine"
+  }
 }
 ```
-
-> El campo `comentario` mostrado en versiones anteriores de este README no está soportado actualmente por el backend; confirmar con el equipo de backend antes de enviarlo.
-
-La interfaz utiliza estrellas para seleccionar la valoración y conserva visualmente el estado seleccionado antes del envío.
-
-## Variables de entorno
-
-Crear `frontend/.env.local`:
-
-```bash
-NEXT_PUBLIC_API_URL=http://localhost:8080
-NEXT_PUBLIC_N8N_WEBHOOK_URL=https://TU-DOMINIO/webhook/buscar
+ 
+Cada punto almacenado contiene:
+ 
+```json
+{
+  "id": 1,
+  "vector": [ ... ],
+  "payload": {
+    "id_curso": 1,
+    "nombre": "Introducción a Python",
+    "descripcion": "...",
+    "categoria": "Programación",
+    "dificultad": "BASICA",
+    "duracion": 40,
+    "activo": true
+  }
+}
 ```
-
-Después de modificar las variables, reiniciar Next.js.
-
-> No almacenar secretos ni claves de servicios externos en este archivo más allá de la URL pública del webhook.
-
+ 
+> La métrica de similitud utilizada es la distancia del coseno.
+ 
+Qdrant se ejecuta mediante Docker con volumen persistente:
+ 
+```yaml
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+volumes:
+  qdrant_data:
+```
+ 
+> La carpeta de almacenamiento del volumen no debe subirse al repositorio.
+ 
+## Flujo de almacenamiento en Qdrant
+ 
+Workflow: `guardar-qdrant.json`. Se ejecuta manualmente desde n8n (**Execute Workflow**), no usa Webhook.
+ 
+Propósito: obtener los cursos de MySQL, generar sus embeddings y almacenarlos en Qdrant.
+ 
+![Flujo de adiciones](./img/Flujo_Adiciones.png)
+ 
+```
+Execute Workflow
+      ↓
+Consulta a la base de datos
+      ↓
+Consultar colecciones
+      ↓
+    ¿Existe?
+   ↙        ↘
+ Sí           No
+  ↓            ↓
+Loop      Crear colección
+  │            ↓
+  └────→ Loop de cursos
+              ↓
+        Generar embedding
+              ↓
+        Preparar puntos
+              ↓
+        Guardar en Qdrant
+              ↓
+          Espera 2s
+              ↓
+        (repite el loop)
+              ↓
+            Done
+```
+ 
+- Texto usado para el embedding: `nombre + descripción`.
+- Modelo: `liquid/lfm-2.5-embedding-350m:free`.
+- Las ramas de error terminan en nodos `Code` que generan mensajes estructurados para identificar problemas de MySQL, Qdrant, embeddings o preparación de datos.
+- Se debe evitar duplicar cursos ya indexados y trabajar con un mínimo de 20 cursos (RF 05).
+## Flujo RAG de búsqueda
+ 
+Workflow: `buscar-rag.json`. Se ejecuta mediante un Webhook.
+ 
+Endpoint (desarrollo):
+ 
+```
+POST /webhook/buscar
+```
+ 
+La URL completa depende de la instancia de n8n; en desarrollo puede exponerse con ngrok.
+ 
+**Payload enviado por el frontend:**
+ 
+```json
+{
+  "pregunta": "Quiero aprender Python desde cero",
+  "idConsulta": "5",
+  "idUsuario": "4",
+  "nivel": "BASICO"
+}
+```
+ 
+**Flujo general:**
+ 
+![Flujo de consultas](./img/Flujo_Consultas.png)
+ 
+```
+Frontend
+  ↓
+Webhook de n8n
+  ↓
+Validación de la consulta
+  ↓
+Generación del embedding
+  ↓
+Búsqueda semántica en Qdrant
+  ↓
+Recuperación de candidatos (3 a 5, solo cursos activos, ordenados por similitud)
+  ↓
+Evaluación mediante LLM
+  ↓
+Recomendación
+  ↓
+Persistencia en el backend (POST /api/recomendaciones, POST /api/fuentes)
+  ↓
+Respuesta al frontend
+```
+ 
+El LLM recibe únicamente los cursos recuperados como candidatos y debe seleccionar como máximo uno. No debe inventar cursos, identificadores ni información externa.
+ 
+Cuando no existe un curso suficientemente relevante (por debajo del umbral de similitud), la respuesta es válida, no un error técnico:
+ 
+```json
+{
+  "ok": true,
+  "recomienda": false,
+  "mensaje": "No encontramos un curso que se ajuste a lo que estás buscando.",
+  "contactar_asesor": true
+}
+```
+ 
+## Manejo de errores
+ 
+Los workflows convierten los errores técnicos en respuestas estructuradas, por ejemplo:
+ 
+```json
+{
+  "estado": "error",
+  "titulo": "No se pudo conectar con Qdrant",
+  "mensaje": "No fue posible establecer la conexión con el servicio.",
+  "accion_recomendada": "Verifica que Qdrant esté disponible e inténtalo nuevamente.",
+  "puede_reintentar": true,
+  "error_tecnico": "ECONNREFUSED"
+}
+```
+ 
+Casos contemplados: errores de MySQL, Qdrant, embeddings, conectividad, timeouts, autorización, colecciones inexistentes, vectores inválidos, límites de servicio y errores internos. El flujo de búsqueda usa **Respond to Webhook** para devolver siempre una respuesta al frontend.
+ 
 ## Ejecución local
-
-Requisitos: Node.js y npm, y el backend corriendo en `http://localhost:8080` (ver [`backend/README.md`](../backend/README.md)).
-
+ 
+Requisitos: Docker Desktop, n8n en ejecución (local o en la nube).
+ 
+**Levantar Qdrant** desde `qdrant/`:
+ 
 ```bash
-npm install
-npm run dev
+docker compose up -d
+docker ps   # confirmar que el contenedor está activo
 ```
-
-Aplicación disponible en `http://localhost:3000`.
-
+ 
+Qdrant queda disponible en `http://localhost:6333`.
+ 
+**Importar workflows** en n8n desde la carpeta `n8n/`. El workflow de búsqueda debe estar **activo** cuando se use la Production URL.
+ 
 ## Troubleshooting
-
-### El frontend no llega a n8n
-
-Verificar:
-
+ 
+### Qdrant no responde
+ 
 ```bash
-NEXT_PUBLIC_N8N_WEBHOOK_URL=https://TU-DOMINIO/webhook/buscar
+docker ps
 ```
-
-Comprobar además que:
-
-- n8n esté ejecutándose y el workflow esté activo.
-- la URL de ngrok (si se usa) siga vigente.
-- el endpoint sea `/webhook/buscar`.
-- el navegador no esté bloqueando la petición por CORS.
-
+ 
+Desde n8n, cuando Qdrant corre en Docker, la conexión usa:
+ 
+```
+http://host.docker.internal:6333
+```
+ 
+### La colección `cursos` no existe
+ 
+Ejecutar el workflow `guardar-qdrant.json` para crearla y poblarla.
+ 
 ### La consulta llega a n8n pero no hay recomendación
-
-Ver la sección de Troubleshooting en [`automatizacion/README.md`](../automatizacion/README.md), ya que el problema suele estar en Qdrant, MySQL o el LLM, no en el frontend.
+ 
+Comprobar en orden:
+ 
+1. Existencia de la colección `cursos` en Qdrant.
+2. Cursos activos en MySQL.
+3. Embeddings almacenados en Qdrant.
+4. Resultados devueltos por la búsqueda semántica.
+5. Respuesta del LLM.
+6. Registro de la recomendación en el backend (ver [`backend/README.md`](../backend/README.md)).
