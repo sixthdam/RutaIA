@@ -1,0 +1,569 @@
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        16,
+        16
+      ],
+      "id": "c1b35841-af64-4c82-a9d6-4ba7147f2f72",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"liquid/lfm-2.5-embedding-350m:free\",\n  \"input\": \"{{$json.nombre}} {{$json.descripcion}}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1360,
+        -256
+      ],
+      "id": "db72b36b-fbd8-48c4-b220-10394f4cbe13",
+      "name": "generar embedding",
+      "retryOnFail": true,
+      "credentials": {
+        "openRouterApi": {
+          "id": "YOUR_OPENROUTER_CREDENTIAL_ID =D",
+          "name": "OpenRouter account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const curso = $('Consulta a la base de datos').item.json;\nconst embedding = $input.item.json.data[0].embedding;\n\nreturn {\n    json: {\n      id: curso.id_curso,\n      vector: embedding,\n      payload: {\n        id_curso: curso.id_curso,\n        nombre: curso.nombre,\n        descripcion: curso.descripcion,\n        categoria: curso.categoria,\n        dificultad: curso.dificultad,\n        duracion: curso.duracion,\n        activo: curso.activo\n      }\n    }\n  }\n;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        -352
+      ],
+      "id": "51d6c238-b46f-4554-92ce-fb420fb34b89",
+      "name": "Preparar puntos",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "http://host.docker.internal:6333/collections/cursos",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"vectors\": {\n    \"size\": 1024,\n    \"distance\": \"Cosine\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        848,
+        -160
+      ],
+      "id": "a84bc967-ffd6-4f06-94ae-2272a970cdde",
+      "name": "crear colecciones",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "http://host.docker.internal:6333/collections/cursos/points",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"points\": [\n    {\n      \"id\": {{ $('Preparar puntos').first().json.id }},\n      \"vector\": {{ $('Preparar puntos').first().json.vector.toJsonString() }},\n      \"payload\": {{ $('Preparar puntos').first().json.payload.toJsonString() }}\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1680,
+        -368
+      ],
+      "id": "c4c85677-4f7a-480f-8dad-8dbd48eb6c4f",
+      "name": "guardar en qdrant",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:6333/collections",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        416,
+        -112
+      ],
+      "id": "f2e9cd03-9ff1-4e6b-a757-5bcb66151fea",
+      "name": "Consultar colecciones",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudieron obtener los cursos\";\nlet mensaje = \"Ocurrió un problema al consultar la información de los cursos.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"econnrefused\") ||\n  textoError.includes(\"network\")\n) {\n  titulo = \"No se pudo conectar con la base de datos\";\n  mensaje = \"No fue posible establecer la conexión con el servicio que almacena la información de los cursos.\";\n  accion = \"Verifica que la base de datos esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"access denied\") ||\n  textoError.includes(\"1045\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"forbidden\")\n) {\n  titulo = \"No se pudo acceder a la base de datos\";\n  mensaje = \"El sistema no tiene autorización para consultar la información de los cursos.\";\n  accion = \"Contacta al administrador del sistema para verificar los permisos de acceso.\";\n}\n\nelse if (\n  textoError.includes(\"unknown database\") ||\n  textoError.includes(\"1049\") ||\n  textoError.includes(\"database\") && textoError.includes(\"doesn't exist\")\n) {\n  titulo = \"No se encontró la base de datos\";\n  mensaje = \"La base de datos que contiene la información de los cursos no está disponible.\";\n  accion = \"Contacta al administrador del sistema para verificar la configuración de la base de datos.\";\n}\n\nelse if (\n  textoError.includes(\"table\") &&\n  (\n    textoError.includes(\"doesn't exist\") ||\n    textoError.includes(\"not found\")\n  )\n) {\n  titulo = \"No se encontró la información de los cursos\";\n  mensaje = \"La estructura de la base de datos no contiene una de las tablas necesarias para realizar la consulta.\";\n  accion = \"Contacta al administrador del sistema para revisar la estructura de la base de datos.\";\n}\n\nelse if (\n  textoError.includes(\"syntax\") ||\n  textoError.includes(\"sql syntax\") ||\n  textoError.includes(\"1064\")\n) {\n  titulo = \"No se pudo realizar la consulta\";\n  mensaje = \"La consulta utilizada para obtener los cursos contiene un problema y no pudo ejecutarse.\";\n  accion = \"Contacta al administrador del sistema para revisar la consulta.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\")\n) {\n  titulo = \"La consulta tardó demasiado\";\n  mensaje = \"La base de datos tardó demasiado en responder y no fue posible obtener los cursos.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"server has gone away\") ||\n  textoError.includes(\"lost connection\")\n) {\n  titulo = \"Se perdió la conexión con la base de datos\";\n  mensaje = \"La conexión con la base de datos se interrumpió mientras se obtenía la información.\";\n  accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      curso: null,\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        144
+      ],
+      "id": "363e722a-763f-47ba-b90a-b5a7e651f0b1",
+      "name": "Error en la consulta SQL"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n    c.id_curso,\n    c.nombre,\n    c.descripcion,\n    c.dificultad,\n    c.duracion,\n    c.activo,\n    cat.nombre AS categoria\nFROM cursos c\nINNER JOIN categorias cat\n    ON c.id_categoria = cat.id_categoria\nWHERE c.activo = true;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        160,
+        16
+      ],
+      "id": "9288c773-4e0a-4348-aab7-e3c87dfc3536",
+      "name": "Consulta a la base de datos",
+      "retryOnFail": true,
+      "credentials": {
+        "mySql": {
+          "id": "YOUR_MYSQL_CREDENTIAL_ID =D",
+          "name": "MySQL account 3"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudo consultar la colección\";\nlet mensaje = \"Ocurrió un problema al consultar la información de la colección de cursos.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"econnrefused\") ||\n  textoError.includes(\"connection refused\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"network\")\n) {\n  titulo = \"No se pudo conectar con Qdrant\";\n  mensaje = \"No fue posible establecer la conexión con el servicio que almacena los vectores de los cursos.\";\n  accion = \"Verifica que Qdrant esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"enotfound\") ||\n  textoError.includes(\"getaddrinfo\") ||\n  textoError.includes(\"host.docker.internal\")\n) {\n  titulo = \"No se pudo encontrar el servidor de Qdrant\";\n  mensaje = \"El sistema no pudo localizar el servicio de Qdrant en la dirección configurada.\";\n  accion = \"Verifica que la dirección de Qdrant sea correcta y que el servicio esté disponible.\";\n}\n\nelse if (\n  textoError.includes(\"404\") ||\n  textoError.includes(\"not found\") ||\n  textoError.includes(\"collection\") &&\n  textoError.includes(\"doesn't exist\")\n) {\n  titulo = \"No se encontró la colección de cursos\";\n  mensaje = \"La colección 'cursos' no existe en Qdrant.\";\n  accion = \"Verifica que la colección haya sido creada antes de realizar la búsqueda.\";\n}\n\nelse if (\n  textoError.includes(\"401\") ||\n  textoError.includes(\"403\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"forbidden\")\n) {\n  titulo = \"No se pudo acceder a Qdrant\";\n  mensaje = \"El sistema no tiene autorización para consultar la colección de cursos.\";\n  accion = \"Verifica las credenciales y permisos de acceso a Qdrant.\";\n}\n\nelse if (\n  textoError.includes(\"500\") ||\n  textoError.includes(\"502\") ||\n  textoError.includes(\"503\") ||\n  textoError.includes(\"internal server error\") ||\n  textoError.includes(\"service unavailable\")\n) {\n  titulo = \"Qdrant no está disponible\";\n  mensaje = \"El servicio de Qdrant no pudo procesar la solicitud en este momento.\";\n  accion = \"Verifica que Qdrant esté funcionando e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\")\n) {\n  titulo = \"Qdrant tardó demasiado en responder\";\n  mensaje = \"El servicio de Qdrant no respondió dentro del tiempo esperado.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      coleccion: \"cursos\",\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        16
+      ],
+      "id": "f331e56d-e91c-4328-8b56-89fae8ca9171",
+      "name": "Error en la consulta de Qdrant"
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudo crear la colección\";\nlet mensaje = \"Ocurrió un problema al crear la colección de cursos en Qdrant.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"econnrefused\") ||\n  textoError.includes(\"connection refused\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"network\")\n) {\n  titulo = \"No se pudo conectar con Qdrant\";\n  mensaje = \"No fue posible establecer la conexión con el servicio de Qdrant para crear la colección.\";\n  accion = \"Verifica que Qdrant esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"enotfound\") ||\n  textoError.includes(\"getaddrinfo\") ||\n  textoError.includes(\"host.docker.internal\")\n) {\n  titulo = \"No se pudo encontrar el servidor de Qdrant\";\n  mensaje = \"El sistema no pudo localizar el servicio de Qdrant en la dirección configurada.\";\n  accion = \"Verifica la dirección de Qdrant y que el servicio esté disponible.\";\n}\n\nelse if (\n  textoError.includes(\"409\") ||\n  textoError.includes(\"already exists\") ||\n  textoError.includes(\"collection already exists\")\n) {\n  titulo = \"La colección ya existe\";\n  mensaje = \"La colección 'cursos' ya existe en Qdrant y no es necesario crearla nuevamente.\";\n  accion = \"Continúa con el proceso utilizando la colección existente.\";\n}\n\nelse if (\n  textoError.includes(\"400\") ||\n  textoError.includes(\"bad request\") ||\n  textoError.includes(\"invalid\") ||\n  textoError.includes(\"vector\") ||\n  textoError.includes(\"dimension\") ||\n  textoError.includes(\"size\") ||\n  textoError.includes(\"distance\")\n) {\n  titulo = \"La configuración de la colección no es válida\";\n  mensaje = \"Qdrant rechazó la configuración utilizada para crear la colección de cursos.\";\n  accion = \"Verifica el tamaño de los vectores, la métrica de distancia y la configuración enviada.\";\n}\n\nelse if (\n  textoError.includes(\"401\") ||\n  textoError.includes(\"403\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"forbidden\")\n) {\n  titulo = \"No se pudo crear la colección en Qdrant\";\n  mensaje = \"El sistema no tiene autorización para crear colecciones en Qdrant.\";\n  accion = \"Verifica los permisos y la configuración de acceso a Qdrant.\";\n}\n\nelse if (\n  textoError.includes(\"500\") ||\n  textoError.includes(\"502\") ||\n  textoError.includes(\"503\") ||\n  textoError.includes(\"internal server error\") ||\n  textoError.includes(\"service unavailable\")\n) {\n  titulo = \"Qdrant no pudo crear la colección\";\n  mensaje = \"El servicio de Qdrant encontró un problema interno al intentar crear la colección.\";\n  accion = \"Verifica que Qdrant esté funcionando correctamente e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\")\n) {\n  titulo = \"Qdrant tardó demasiado en responder\";\n  mensaje = \"El servicio de Qdrant no respondió dentro del tiempo esperado al crear la colección.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      coleccion: \"cursos\",\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        -32
+      ],
+      "id": "d11803c1-dd4a-438c-a591-9a666121fff6",
+      "name": "Error al crear la colección"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1168,
+        144
+      ],
+      "id": "c41c9de6-0876-4a6c-af32-ae1d857e0e59",
+      "name": "Respuesta a errores previos a embeddings"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"estado\": \"ok\",\n  \"mensaje\": \"Cursos guardados correctamente. Ya puedes actualizar esta página.\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1360,
+        -464
+      ],
+      "id": "aefdefce-bde3-453c-89fb-7f006ccbbe64",
+      "name": "Éxito al guardar la información"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1168,
+        -272
+      ],
+      "id": "186ed409-884c-4aaf-9ace-be9ecd447865",
+      "name": "Loop de cursos"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1904,
+        -272
+      ],
+      "id": "5a0d1a17-fad5-4a7f-a4d8-25d066ac5514",
+      "name": "Espera (2s)",
+      "webhookId": "19443a85-60c4-481c-b47f-4a5155b5c7d0"
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudo guardar el curso\";\nlet mensaje =\n  \"Ocurrió un problema al guardar la información del curso en Qdrant.\";\nlet accion =\n  \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"econnrefused\") ||\n  textoError.includes(\"network\")\n) {\n  titulo = \"No se pudo conectar con Qdrant\";\n  mensaje =\n    \"No fue posible establecer la conexión con el servicio de Qdrant para guardar la información.\";\n  accion =\n    \"Verifica que Qdrant esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"400\") ||\n  textoError.includes(\"bad request\") ||\n  textoError.includes(\"invalid\") ||\n  textoError.includes(\"vector\") ||\n  textoError.includes(\"dimension\")\n) {\n  titulo = \"Qdrant rechazó el vector\";\n  mensaje =\n    \"Qdrant rechazó la información del curso porque los datos enviados no tienen el formato esperado.\";\n  accion =\n    \"Verifica el vector y la configuración de la colección.\";\n}\n\nelse if (\n  textoError.includes(\"404\") ||\n  textoError.includes(\"not found\")\n) {\n  titulo = \"No se encontró la colección\";\n  mensaje =\n    \"La colección 'cursos' no está disponible en Qdrant.\";\n  accion =\n    \"Verifica que la colección exista antes de guardar los vectores.\";\n}\n\nelse if (\n  textoError.includes(\"401\") ||\n  textoError.includes(\"403\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"forbidden\")\n) {\n  titulo = \"No se pudo acceder a Qdrant\";\n  mensaje =\n    \"El sistema no tiene autorización para guardar información en Qdrant.\";\n  accion =\n    \"Verifica los permisos y la configuración de acceso a Qdrant.\";\n}\n\nelse if (\n  textoError.includes(\"500\") ||\n  textoError.includes(\"502\") ||\n  textoError.includes(\"503\") ||\n  textoError.includes(\"internal server error\") ||\n  textoError.includes(\"service unavailable\")\n) {\n  titulo = \"Qdrant no pudo guardar la información\";\n  mensaje =\n    \"El servicio de Qdrant presentó un problema interno al guardar el vector.\";\n  accion =\n    \"Verifica que Qdrant esté funcionando correctamente e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\")\n) {\n  titulo = \"Qdrant tardó demasiado en responder\";\n  mensaje =\n    \"El servicio de Qdrant no respondió dentro del tiempo esperado.\";\n  accion =\n    \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      coleccion: \"cursos\",\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        -32
+      ],
+      "id": "6eea93f5-7ecd-48b4-bfae-f5781f838c12",
+      "name": "Error al guardar en Qdrant"
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudieron preparar los datos\";\nlet mensaje = \"Ocurrió un problema al preparar la información del curso para generar el registro vectorial.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"curso\") &&\n  (\n    textoError.includes(\"no se encontró\") ||\n    textoError.includes(\"no contiene\")\n  )\n) {\n  titulo = \"No se encontró la información del curso\";\n  mensaje = \"No fue posible obtener los datos necesarios del curso para preparar su información.\";\n  accion = \"Verifica que la consulta a la base de datos esté devolviendo correctamente los cursos.\";\n}\n\nelse if (\n  textoError.includes(\"embedding\") &&\n  (\n    textoError.includes(\"no se encontró\") ||\n    textoError.includes(\"vacío\") ||\n    textoError.includes(\"formato\")\n  )\n) {\n  titulo = \"No se pudo obtener el embedding\";\n  mensaje = \"No fue posible obtener un vector válido para representar la información del curso.\";\n  accion = \"Verifica que el nodo de generación de embeddings esté funcionando correctamente.\";\n}\n\nelse if (\n  textoError.includes(\"dimensiones\")\n) {\n  titulo = \"El embedding tiene una dimensión incorrecta\";\n  mensaje = \"El vector generado no tiene la cantidad de dimensiones que espera la colección de Qdrant.\";\n  accion = \"Verifica que el modelo de embeddings utilizado sea compatible con la colección.\";\n}\n\nelse if (\n  textoError.includes(\"id_curso\") ||\n  textoError.includes(\"identificador\")\n) {\n  titulo = \"El curso no tiene un identificador válido\";\n  mensaje = \"La información recibida del curso no contiene un identificador válido para crear el punto en Qdrant.\";\n  accion = \"Verifica la información devuelta por la base de datos.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      curso: null,\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        112
+      ],
+      "id": "57ef7ef5-c140-4374-9862-40d291fa39d0",
+      "name": "Error al preparar puntos"
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nconst nombreCurso =\n  $json.nombre ??\n  $json.payload?.nombre ??\n  \"Curso no identificado\";\n\nlet titulo = \"No se pudo generar el embedding\";\nlet mensaje = \"Ocurrió un problema mientras se generaba la representación vectorial del curso.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"rate limit\") ||\n  textoError.includes(\"too many requests\") ||\n  textoError.includes(\"429\")\n) {\n  titulo = \"Servicio temporalmente ocupado\";\n  mensaje = \"El servicio de generación de embeddings está temporalmente ocupado y no pudo procesar el curso.\";\n  accion = \"Espera unos minutos y vuelve a intentarlo.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\")\n) {\n  titulo = \"La generación del embedding tardó demasiado\";\n  mensaje = \"El servicio tardó demasiado en generar el embedding del curso.\";\n  accion = \"Verifica la conexión e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"network\") ||\n  textoError.includes(\"econnrefused\")\n) {\n  titulo = \"No se pudo conectar con el servicio de embeddings\";\n  mensaje = \"No fue posible comunicarse con el servicio encargado de generar el embedding.\";\n  accion = \"Verifica que el servicio de embeddings esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"400\") ||\n  textoError.includes(\"bad request\") ||\n  textoError.includes(\"invalid\")\n) {\n  titulo = \"No se pudo procesar la información del curso\";\n  mensaje = \"El servicio de embeddings rechazó la información enviada para generar el vector.\";\n  accion = \"Verifica que los datos enviados al servicio tengan el formato esperado.\";\n}\n\nelse if (\n  textoError.includes(\"401\") ||\n  textoError.includes(\"403\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"forbidden\")\n) {\n  titulo = \"No se pudo autorizar la generación del embedding\";\n  mensaje = \"El sistema no tiene autorización para utilizar el servicio de embeddings.\";\n  accion = \"Verifica las credenciales y permisos del servicio de embeddings.\";\n}\n\nelse if (\n  textoError.includes(\"404\") ||\n  textoError.includes(\"not found\")\n) {\n  titulo = \"No se encontró el servicio de embeddings\";\n  mensaje = \"No fue posible encontrar el modelo o recurso necesario para generar el embedding.\";\n  accion = \"Verifica la configuración del modelo y del servicio de embeddings.\";\n}\n\nelse if (\n  textoError.includes(\"500\") ||\n  textoError.includes(\"internal server error\") ||\n  textoError.includes(\"502\") ||\n  textoError.includes(\"503\")\n) {\n  titulo = \"El servicio de embeddings presentó un error\";\n  mensaje = \"El servicio encargado de generar el embedding presentó un problema interno.\";\n  accion = \"Espera unos minutos y vuelve a intentarlo.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      curso: nombreCurso,\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        272
+      ],
+      "id": "f471c312-04e8-42e4-8f39-00c8f88c3e64",
+      "name": "Error al generar embedding"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1904,
+        112
+      ],
+      "id": "e4ee909e-2776-4266-9695-4405e1d55af0",
+      "name": "Respuesta a errores posteriores a embeddings"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "61b73f99-3f5e-4925-aedd-3b01779484c0",
+              "leftValue": "={{ $json.result.collections.some(c => c.name === 'cursos') }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": false
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        608,
+        -256
+      ],
+      "id": "1ed296f1-7166-4a0f-ad22-50073de21c7d",
+      "name": "If"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Consulta a la base de datos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "generar embedding": {
+      "main": [
+        [
+          {
+            "node": "Preparar puntos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error al generar embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar puntos": {
+      "main": [
+        [
+          {
+            "node": "guardar en qdrant",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error al preparar puntos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "crear colecciones": {
+      "main": [
+        [
+          {
+            "node": "Loop de cursos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error al crear la colección",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "guardar en qdrant": {
+      "main": [
+        [
+          {
+            "node": "Espera (2s)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error al guardar en Qdrant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar colecciones": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error en la consulta de Qdrant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error en la consulta SQL": {
+      "main": [
+        [
+          {
+            "node": "Respuesta a errores previos a embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consulta a la base de datos": {
+      "main": [
+        [
+          {
+            "node": "Consultar colecciones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error en la consulta SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error en la consulta de Qdrant": {
+      "main": [
+        [
+          {
+            "node": "Respuesta a errores previos a embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error al crear la colección": {
+      "main": [
+        [
+          {
+            "node": "Respuesta a errores previos a embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop de cursos": {
+      "main": [
+        [
+          {
+            "node": "Éxito al guardar la información",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "generar embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Espera (2s)": {
+      "main": [
+        [
+          {
+            "node": "Loop de cursos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error al guardar en Qdrant": {
+      "main": [
+        [
+          {
+            "node": "Respuesta a errores posteriores a embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error al preparar puntos": {
+      "main": [
+        [
+          {
+            "node": "Respuesta a errores posteriores a embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error al generar embedding": {
+      "main": [
+        [
+          {
+            "node": "Respuesta a errores posteriores a embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Loop de cursos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "crear colecciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d2fab3360e878446ba165a920b219214f4afb2680e6c1388787c8a17c30df41b"
+  }
+}
