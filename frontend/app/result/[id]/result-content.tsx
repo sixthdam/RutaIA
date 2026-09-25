@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { gsap } from "@/lib/gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { AlertCircle, ChevronLeft, ExternalLink, Loader2 } from "lucide-react";
 import { api, CONFIG, Recommendation, Source, Course, CalificacionRequest, CalificacionResponse } from "@/lib/api/service";
 
@@ -36,37 +37,34 @@ export default function ResultPage() {
         setQuestion(consulta.pregunta);
 
         try {
-          const [rec, calif] = await Promise.allSettled([
-            api.getRecomendacionByConsulta(consultaId), // TODO: Backend to implement GET /api/consultas/{id}/recomendacion
-            api.getCalificacion(consultaId).catch(() => null),
-          ]);
+          const rec = await api.getRecomendacionByConsulta(consultaId);
+          setRecommendation(rec);
 
-          if (rec.status === "fulfilled") {
-            const recommendationData = rec.value;
-            setRecommendation(recommendationData);
-
-            try {
-              const fuentes = await api.getFuentesByRecomendacion(recommendationData.idRecomendacion);
-              const fuentesConCurso = await Promise.all(
-                fuentes.map(async (f) => {
-                  try {
-                    const curso = await api.getCurso(f.idCurso);
-                    return { ...f, curso };
-                  } catch {
-                    return f;
-                  }
-                })
-              );
-              setSources(fuentesConCurso);
-            } catch {
-              setSources([]);
-            }
+          // Fetch calification using idRecomendacion (not consultaId)
+          try {
+            const calif = await api.getCalificacion(rec.idRecomendacion);
+            setExistingRating(calif);
+            setRating(calif.calificacion);
+            setComment(calif.comentario || "");
+          } catch {
+            // No rating yet
           }
 
-          if (calif.status === "fulfilled" && calif.value) {
-            setExistingRating(calif.value);
-            setRating(calif.value.calificacion);
-            setComment(calif.value.comentario || "");
+          try {
+            const fuentes = await api.getFuentesByRecomendacion(rec.idRecomendacion);
+            const fuentesConCurso = await Promise.all(
+              fuentes.map(async (f) => {
+                try {
+                  const curso = await api.getCurso(f.idCurso);
+                  return { ...f, curso };
+                } catch {
+                  return f;
+                }
+              })
+            );
+            setSources(fuentesConCurso);
+          } catch {
+            setSources([]);
           }
         } catch {
           // No recommendation yet
