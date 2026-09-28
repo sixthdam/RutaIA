@@ -93,10 +93,6 @@ export default function QueryPage() {
 
         const experiencia = user?.experiencia;
 
-        if (!experiencia || !(experiencia in niveles)) {
-          throw new Error("No se pudo determinar el nivel del usuario.");
-        }
-
         const payload: N8nPayload = {
           pregunta: question.trim(),
           idConsulta: String(consultaId),
