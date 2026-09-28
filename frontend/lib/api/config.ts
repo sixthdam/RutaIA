@@ -1,6 +1,6 @@
 export const CONFIG = {
   API_BASE_URL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080",
-  N8N_WEBHOOK_URL: process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || "https://n8n.example.com/webhook/consulta",
+  N8N_WEBHOOK_URL: process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || "https://recolor-exceeding-vagrancy.ngrok-free.dev/webhook-test/buscar",
   STORAGE_KEYS: {
     TOKEN: "rutaia_token",
     USER: "rutaia_user",

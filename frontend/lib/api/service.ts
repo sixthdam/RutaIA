@@ -399,7 +399,9 @@ export interface StatsResponse {
 // n8n types
 export interface N8nPayload {
   pregunta: string;
+  pregunta2: string;
   idConsulta: string;
+  idConsulta2: string;
   idUsuario: string;
   nivel: string;
 }

@@ -17,6 +17,7 @@ const exampleQueries = [
 
 export default function QueryPage() {
   const [question, setQuestion] = useState("");
+  const [question2, setQuestion2] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isProcessingN8n, setIsProcessingN8n] = useState(false);
@@ -75,8 +76,13 @@ export default function QueryPage() {
         pregunta: question.trim(),
         idUsuario: userId,
       });
-
-      const consultaId = response.idConsulta;
+      const consultaId = response.idConsulta; 
+      
+      const response2 = await api.createConsulta({ 
+        pregunta: question2.trim(),
+        idUsuario: userId,
+      });
+      const consultaId2 = response2.idConsulta;
 
       setIsSubmitting(false);
       setIsProcessingN8n(true);
@@ -99,7 +105,9 @@ export default function QueryPage() {
 
         const payload: N8nPayload = {
           pregunta: question.trim(),
+          pregunta2: question2.trim(),
           idConsulta: String(consultaId),
+          idConsulta2: String(consultaId2),
           idUsuario: String(userId),
           nivel: niveles[experiencia as keyof typeof niveles],
         };
@@ -185,6 +193,18 @@ export default function QueryPage() {
                   required
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
+                  aria-describedby="preguntaHelp preguntaError"
+                />
+                <textarea
+                  ref={textareaRef}
+                  id="pregunta2"
+                  name="pregunta2"
+                  className="form-input form-textarea"
+                  placeholder="Ej: Quiero aprender machine learning desde cero, ¿qué cursos me recomiendan?"
+                  rows={4}
+                  required
+                  value={question2}
+                  onChange={(e) => setQuestion2(e.target.value)}
                   aria-describedby="preguntaHelp preguntaError"
                 />
                 <div className="form-help" id="preguntaHelp">
