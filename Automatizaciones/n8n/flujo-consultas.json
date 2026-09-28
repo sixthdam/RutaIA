@@ -1,15 +1,21 @@
 {
   "nodes": [
     {
-      "parameters": {},
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "buscar",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
       "position": [
-        16,
-        16
+        -32,
+        0
       ],
-      "id": "c1b35841-af64-4c82-a9d6-4ba7147f2f72",
-      "name": "When clicking ‘Execute workflow’"
+      "id": "22841cef-5ef9-4c54-84d8-4b815c45e4d9",
+      "name": "Webhook",
+      "webhookId": "9f524d49-a82d-487c-bb47-d62547793fd0"
     },
     {
       "parameters": {
@@ -17,278 +23,111 @@
         "url": "https://openrouter.ai/api/v1/embeddings",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "openRouterApi",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"liquid/lfm-2.5-embedding-350m:free\",\n  \"input\": \"{{$json.nombre}} {{$json.descripcion}}\"\n}",
+        "jsonBody": "={\n  \"model\": \"liquid/lfm-2.5-embedding-350m:free\",\n  \"input\": \"{{$json.pregunta}}\"\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1360,
-        -256
+        624,
+        -128
       ],
-      "id": "db72b36b-fbd8-48c4-b220-10394f4cbe13",
-      "name": "generar embedding",
+      "id": "898a0581-6d53-40e0-8dd0-a0cd09c30aa9",
+      "name": "embeddings",
       "retryOnFail": true,
       "credentials": {
         "openRouterApi": {
-          "id": "YOUR_OPENROUTER_CREDENTIAL_ID =D",
-          "name": "OpenRouter account"
+          "id": "iNBGJEfFnmQxKqzZ",
+          "name": "OpenRouter account 2"
         }
       },
       "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const curso = $('Consulta a la base de datos').item.json;\nconst embedding = $input.item.json.data[0].embedding;\n\nreturn {\n    json: {\n      id: curso.id_curso,\n      vector: embedding,\n      payload: {\n        id_curso: curso.id_curso,\n        nombre: curso.nombre,\n        descripcion: curso.descripcion,\n        categoria: curso.categoria,\n        dificultad: curso.dificultad,\n        duracion: curso.duracion,\n        activo: curso.activo\n      }\n    }\n  }\n;"
+        "jsCode": "const embedding = $input.item.json.data[0].embedding;\n\nconst webhook = $('Webhook').item.json.body;\n\nconst nivelesPermitidos = {\n  basico: [\"BASICO\"],\n  intermedio: [\"BASICO\", \"INTERMEDIO\"],\n  avanzado: [\"BASICO\", \"INTERMEDIO\", \"AVANZADO\"]\n};\n\nconst niveles = nivelesPermitidos[webhook.nivel.toLowerCase()] ?? [\"BASICO\"];\n\nreturn {\n  json: {\n    vector: embedding,\n    pregunta: webhook.pregunta,\n    limit: 5,\n    score_threshold: 0.35,\n    with_payload: true,\n    filter: {\n      must: [\n        {\n          key: \"dificultad\",\n          match: {\n            any: niveles\n          }\n        }\n      ]\n    }\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1520,
-        -352
+        912,
+        -144
       ],
-      "id": "51d6c238-b46f-4554-92ce-fb420fb34b89",
-      "name": "Preparar puntos",
-      "retryOnFail": true,
-      "onError": "continueErrorOutput"
+      "id": "f0dac6ce-709f-4e72-b339-3922c8216c00",
+      "name": "preparar consulta"
     },
     {
       "parameters": {
-        "method": "PUT",
-        "url": "http://host.docker.internal:6333/collections/cursos",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "{\n  \"vectors\": {\n    \"size\": 1024,\n    \"distance\": \"Cosine\"\n  }\n}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        848,
-        -160
-      ],
-      "id": "a84bc967-ffd6-4f06-94ae-2272a970cdde",
-      "name": "crear colecciones",
-      "retryOnFail": true,
-      "onError": "continueErrorOutput"
-    },
-    {
-      "parameters": {
-        "method": "PUT",
-        "url": "http://host.docker.internal:6333/collections/cursos/points",
-        "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={\n  \"points\": [\n    {\n      \"id\": {{ $('Preparar puntos').first().json.id }},\n      \"vector\": {{ $('Preparar puntos').first().json.vector.toJsonString() }},\n      \"payload\": {{ $('Preparar puntos').first().json.payload.toJsonString() }}\n    }\n  ]\n}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        1680,
-        -368
-      ],
-      "id": "c4c85677-4f7a-480f-8dad-8dbd48eb6c4f",
-      "name": "guardar en qdrant",
-      "retryOnFail": true,
-      "onError": "continueErrorOutput"
-    },
-    {
-      "parameters": {
-        "url": "http://host.docker.internal:6333/collections",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        416,
-        -112
-      ],
-      "id": "f2e9cd03-9ff1-4e6b-a757-5bcb66151fea",
-      "name": "Consultar colecciones",
-      "retryOnFail": true,
-      "onError": "continueErrorOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudieron obtener los cursos\";\nlet mensaje = \"Ocurrió un problema al consultar la información de los cursos.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"econnrefused\") ||\n  textoError.includes(\"network\")\n) {\n  titulo = \"No se pudo conectar con la base de datos\";\n  mensaje = \"No fue posible establecer la conexión con el servicio que almacena la información de los cursos.\";\n  accion = \"Verifica que la base de datos esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"access denied\") ||\n  textoError.includes(\"1045\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"forbidden\")\n) {\n  titulo = \"No se pudo acceder a la base de datos\";\n  mensaje = \"El sistema no tiene autorización para consultar la información de los cursos.\";\n  accion = \"Contacta al administrador del sistema para verificar los permisos de acceso.\";\n}\n\nelse if (\n  textoError.includes(\"unknown database\") ||\n  textoError.includes(\"1049\") ||\n  textoError.includes(\"database\") && textoError.includes(\"doesn't exist\")\n) {\n  titulo = \"No se encontró la base de datos\";\n  mensaje = \"La base de datos que contiene la información de los cursos no está disponible.\";\n  accion = \"Contacta al administrador del sistema para verificar la configuración de la base de datos.\";\n}\n\nelse if (\n  textoError.includes(\"table\") &&\n  (\n    textoError.includes(\"doesn't exist\") ||\n    textoError.includes(\"not found\")\n  )\n) {\n  titulo = \"No se encontró la información de los cursos\";\n  mensaje = \"La estructura de la base de datos no contiene una de las tablas necesarias para realizar la consulta.\";\n  accion = \"Contacta al administrador del sistema para revisar la estructura de la base de datos.\";\n}\n\nelse if (\n  textoError.includes(\"syntax\") ||\n  textoError.includes(\"sql syntax\") ||\n  textoError.includes(\"1064\")\n) {\n  titulo = \"No se pudo realizar la consulta\";\n  mensaje = \"La consulta utilizada para obtener los cursos contiene un problema y no pudo ejecutarse.\";\n  accion = \"Contacta al administrador del sistema para revisar la consulta.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\")\n) {\n  titulo = \"La consulta tardó demasiado\";\n  mensaje = \"La base de datos tardó demasiado en responder y no fue posible obtener los cursos.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"server has gone away\") ||\n  textoError.includes(\"lost connection\")\n) {\n  titulo = \"Se perdió la conexión con la base de datos\";\n  mensaje = \"La conexión con la base de datos se interrumpió mientras se obtenía la información.\";\n  accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      curso: null,\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
+        "jsCode": "const puntos = $json.result?.points ?? [];\n\nreturn {\n  json: {\n    pregunta: $('preparar consulta').item.json.pregunta,\n    cursos: puntos.map(punto => ({\n      id_curso: punto.payload.id_curso,\n      nombre: punto.payload.nombre,\n      descripcion: punto.payload.descripcion,\n      categoria: punto.payload.categoria,\n      dificultad: punto.payload.dificultad,\n      duracion: punto.payload.duracion,\n      score: punto.score\n    }))\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        416,
-        144
+        2000,
+        -176
       ],
-      "id": "363e722a-763f-47ba-b90a-b5a7e651f0b1",
-      "name": "Error en la consulta SQL"
+      "id": "257d2c43-83d0-4a3e-ae2a-d17a08bf4e0f",
+      "name": "formatear resultados"
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT\n    c.id_curso,\n    c.nombre,\n    c.descripcion,\n    c.dificultad,\n    c.duracion,\n    c.activo,\n    cat.nombre AS categoria\nFROM cursos c\nINNER JOIN categorias cat\n    ON c.id_categoria = cat.id_categoria\nWHERE c.activo = true;",
-        "options": {}
+        "promptType": "define",
+        "text": "=Pregunta del usuario:\n{{ $json.pregunta }}\n\nCursos candidatos recuperados:\n{{ JSON.stringify($json.cursos) }}\n\nEvalúa únicamente los cursos candidatos.\n\nRecomienda solo un curso candidato. No inventes cursos, IDs ni información externa.\n\nSi uno es suficientemente relevante:\nrecomienda=true e id_curso debe ser su ID.\n\nEl motivo debe ser breve, cordial y humano, explicando cómo el curso puede ayudar al usuario a avanzar hacia su objetivo. Al final, pregunta si desea hablar con un asesor para conocer el proceso de inscripción.\n\nSi ninguno es suficientemente relevante:\nrecomienda=false, id_curso=null.\nIndica de forma breve y cordial que no hay un curso adecuado para su consulta y pregunta si desea hablar con un asesor para encontrar una opción.\n\nSi la pregunta no corresponde a tecnología o a los temas cubiertos por los candidatos:\nrecomienda=false, id_curso=null.\nIndica que no hay cursos disponibles para esa consulta y pregunta si desea hablar con un asesor.",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": []
+        },
+        "batching": {}
       },
-      "type": "n8n-nodes-base.mySql",
-      "typeVersion": 2.5,
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
       "position": [
-        160,
-        16
+        2208,
+        -176
       ],
-      "id": "9288c773-4e0a-4348-aab7-e3c87dfc3536",
-      "name": "Consulta a la base de datos",
+      "id": "631cf0e2-2207-42d7-a967-0528792a5b73",
+      "name": "Basic LLM Chain",
       "retryOnFail": true,
-      "credentials": {
-        "mySql": {
-          "id": "YOUR_MYSQL_CREDENTIAL_ID =D",
-          "name": "MySQL account 3"
-        }
-      },
       "onError": "continueErrorOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudo consultar la colección\";\nlet mensaje = \"Ocurrió un problema al consultar la información de la colección de cursos.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"econnrefused\") ||\n  textoError.includes(\"connection refused\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"network\")\n) {\n  titulo = \"No se pudo conectar con Qdrant\";\n  mensaje = \"No fue posible establecer la conexión con el servicio que almacena los vectores de los cursos.\";\n  accion = \"Verifica que Qdrant esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"enotfound\") ||\n  textoError.includes(\"getaddrinfo\") ||\n  textoError.includes(\"host.docker.internal\")\n) {\n  titulo = \"No se pudo encontrar el servidor de Qdrant\";\n  mensaje = \"El sistema no pudo localizar el servicio de Qdrant en la dirección configurada.\";\n  accion = \"Verifica que la dirección de Qdrant sea correcta y que el servicio esté disponible.\";\n}\n\nelse if (\n  textoError.includes(\"404\") ||\n  textoError.includes(\"not found\") ||\n  textoError.includes(\"collection\") &&\n  textoError.includes(\"doesn't exist\")\n) {\n  titulo = \"No se encontró la colección de cursos\";\n  mensaje = \"La colección 'cursos' no existe en Qdrant.\";\n  accion = \"Verifica que la colección haya sido creada antes de realizar la búsqueda.\";\n}\n\nelse if (\n  textoError.includes(\"401\") ||\n  textoError.includes(\"403\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"forbidden\")\n) {\n  titulo = \"No se pudo acceder a Qdrant\";\n  mensaje = \"El sistema no tiene autorización para consultar la colección de cursos.\";\n  accion = \"Verifica las credenciales y permisos de acceso a Qdrant.\";\n}\n\nelse if (\n  textoError.includes(\"500\") ||\n  textoError.includes(\"502\") ||\n  textoError.includes(\"503\") ||\n  textoError.includes(\"internal server error\") ||\n  textoError.includes(\"service unavailable\")\n) {\n  titulo = \"Qdrant no está disponible\";\n  mensaje = \"El servicio de Qdrant no pudo procesar la solicitud en este momento.\";\n  accion = \"Verifica que Qdrant esté funcionando e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\")\n) {\n  titulo = \"Qdrant tardó demasiado en responder\";\n  mensaje = \"El servicio de Qdrant no respondió dentro del tiempo esperado.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      coleccion: \"cursos\",\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        608,
-        16
-      ],
-      "id": "f331e56d-e91c-4328-8b56-89fae8ca9171",
-      "name": "Error en la consulta de Qdrant"
-    },
-    {
-      "parameters": {
-        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudo crear la colección\";\nlet mensaje = \"Ocurrió un problema al crear la colección de cursos en Qdrant.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"econnrefused\") ||\n  textoError.includes(\"connection refused\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"network\")\n) {\n  titulo = \"No se pudo conectar con Qdrant\";\n  mensaje = \"No fue posible establecer la conexión con el servicio de Qdrant para crear la colección.\";\n  accion = \"Verifica que Qdrant esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"enotfound\") ||\n  textoError.includes(\"getaddrinfo\") ||\n  textoError.includes(\"host.docker.internal\")\n) {\n  titulo = \"No se pudo encontrar el servidor de Qdrant\";\n  mensaje = \"El sistema no pudo localizar el servicio de Qdrant en la dirección configurada.\";\n  accion = \"Verifica la dirección de Qdrant y que el servicio esté disponible.\";\n}\n\nelse if (\n  textoError.includes(\"409\") ||\n  textoError.includes(\"already exists\") ||\n  textoError.includes(\"collection already exists\")\n) {\n  titulo = \"La colección ya existe\";\n  mensaje = \"La colección 'cursos' ya existe en Qdrant y no es necesario crearla nuevamente.\";\n  accion = \"Continúa con el proceso utilizando la colección existente.\";\n}\n\nelse if (\n  textoError.includes(\"400\") ||\n  textoError.includes(\"bad request\") ||\n  textoError.includes(\"invalid\") ||\n  textoError.includes(\"vector\") ||\n  textoError.includes(\"dimension\") ||\n  textoError.includes(\"size\") ||\n  textoError.includes(\"distance\")\n) {\n  titulo = \"La configuración de la colección no es válida\";\n  mensaje = \"Qdrant rechazó la configuración utilizada para crear la colección de cursos.\";\n  accion = \"Verifica el tamaño de los vectores, la métrica de distancia y la configuración enviada.\";\n}\n\nelse if (\n  textoError.includes(\"401\") ||\n  textoError.includes(\"403\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"forbidden\")\n) {\n  titulo = \"No se pudo crear la colección en Qdrant\";\n  mensaje = \"El sistema no tiene autorización para crear colecciones en Qdrant.\";\n  accion = \"Verifica los permisos y la configuración de acceso a Qdrant.\";\n}\n\nelse if (\n  textoError.includes(\"500\") ||\n  textoError.includes(\"502\") ||\n  textoError.includes(\"503\") ||\n  textoError.includes(\"internal server error\") ||\n  textoError.includes(\"service unavailable\")\n) {\n  titulo = \"Qdrant no pudo crear la colección\";\n  mensaje = \"El servicio de Qdrant encontró un problema interno al intentar crear la colección.\";\n  accion = \"Verifica que Qdrant esté funcionando correctamente e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\")\n) {\n  titulo = \"Qdrant tardó demasiado en responder\";\n  mensaje = \"El servicio de Qdrant no respondió dentro del tiempo esperado al crear la colección.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      coleccion: \"cursos\",\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        992,
-        -32
-      ],
-      "id": "d11803c1-dd4a-438c-a591-9a666121fff6",
-      "name": "Error al crear la colección"
-    },
-    {
-      "parameters": {
-        "options": {}
-      },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        1168,
-        144
-      ],
-      "id": "c41c9de6-0876-4a6c-af32-ae1d857e0e59",
-      "name": "Respuesta a errores previos a embeddings"
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "{\n  \"estado\": \"ok\",\n  \"mensaje\": \"Cursos guardados correctamente. Ya puedes actualizar esta página.\"\n}",
+        "responseBody": "={\n  \"ok\": true,\n  \"mensaje\": \"{{ $('Basic LLM Chain').item.json.output.motivo }}\",\n  \"idRecomendacion\": {{ $('Registrar recomendación').item.json.idRecomendacion }}\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        1360,
-        -464
+        3984,
+        -352
       ],
-      "id": "aefdefce-bde3-453c-89fb-7f006ccbbe64",
-      "name": "Éxito al guardar la información"
+      "id": "9448d1c5-8b04-46f6-8e97-c935035361ee",
+      "name": "Respond to Webhook"
     },
     {
       "parameters": {
-        "options": {}
+        "model": "deepseek/deepseek-chat-v3-0324",
+        "options": {
+          "maxTokens": 300
+        }
       },
-      "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 3,
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
       "position": [
-        1168,
-        -272
+        2208,
+        128
       ],
-      "id": "186ed409-884c-4aaf-9ace-be9ecd447865",
-      "name": "Loop de cursos"
-    },
-    {
-      "parameters": {
-        "amount": 2
-      },
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [
-        1904,
-        -272
-      ],
-      "id": "5a0d1a17-fad5-4a7f-a4d8-25d066ac5514",
-      "name": "Espera (2s)",
-      "webhookId": "19443a85-60c4-481c-b47f-4a5155b5c7d0"
-    },
-    {
-      "parameters": {
-        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudo guardar el curso\";\nlet mensaje =\n  \"Ocurrió un problema al guardar la información del curso en Qdrant.\";\nlet accion =\n  \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"econnrefused\") ||\n  textoError.includes(\"network\")\n) {\n  titulo = \"No se pudo conectar con Qdrant\";\n  mensaje =\n    \"No fue posible establecer la conexión con el servicio de Qdrant para guardar la información.\";\n  accion =\n    \"Verifica que Qdrant esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"400\") ||\n  textoError.includes(\"bad request\") ||\n  textoError.includes(\"invalid\") ||\n  textoError.includes(\"vector\") ||\n  textoError.includes(\"dimension\")\n) {\n  titulo = \"Qdrant rechazó el vector\";\n  mensaje =\n    \"Qdrant rechazó la información del curso porque los datos enviados no tienen el formato esperado.\";\n  accion =\n    \"Verifica el vector y la configuración de la colección.\";\n}\n\nelse if (\n  textoError.includes(\"404\") ||\n  textoError.includes(\"not found\")\n) {\n  titulo = \"No se encontró la colección\";\n  mensaje =\n    \"La colección 'cursos' no está disponible en Qdrant.\";\n  accion =\n    \"Verifica que la colección exista antes de guardar los vectores.\";\n}\n\nelse if (\n  textoError.includes(\"401\") ||\n  textoError.includes(\"403\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"forbidden\")\n) {\n  titulo = \"No se pudo acceder a Qdrant\";\n  mensaje =\n    \"El sistema no tiene autorización para guardar información en Qdrant.\";\n  accion =\n    \"Verifica los permisos y la configuración de acceso a Qdrant.\";\n}\n\nelse if (\n  textoError.includes(\"500\") ||\n  textoError.includes(\"502\") ||\n  textoError.includes(\"503\") ||\n  textoError.includes(\"internal server error\") ||\n  textoError.includes(\"service unavailable\")\n) {\n  titulo = \"Qdrant no pudo guardar la información\";\n  mensaje =\n    \"El servicio de Qdrant presentó un problema interno al guardar el vector.\";\n  accion =\n    \"Verifica que Qdrant esté funcionando correctamente e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\")\n) {\n  titulo = \"Qdrant tardó demasiado en responder\";\n  mensaje =\n    \"El servicio de Qdrant no respondió dentro del tiempo esperado.\";\n  accion =\n    \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      coleccion: \"cursos\",\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1632,
-        -32
-      ],
-      "id": "6eea93f5-7ecd-48b4-bfae-f5781f838c12",
-      "name": "Error al guardar en Qdrant"
-    },
-    {
-      "parameters": {
-        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudieron preparar los datos\";\nlet mensaje = \"Ocurrió un problema al preparar la información del curso para generar el registro vectorial.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"curso\") &&\n  (\n    textoError.includes(\"no se encontró\") ||\n    textoError.includes(\"no contiene\")\n  )\n) {\n  titulo = \"No se encontró la información del curso\";\n  mensaje = \"No fue posible obtener los datos necesarios del curso para preparar su información.\";\n  accion = \"Verifica que la consulta a la base de datos esté devolviendo correctamente los cursos.\";\n}\n\nelse if (\n  textoError.includes(\"embedding\") &&\n  (\n    textoError.includes(\"no se encontró\") ||\n    textoError.includes(\"vacío\") ||\n    textoError.includes(\"formato\")\n  )\n) {\n  titulo = \"No se pudo obtener el embedding\";\n  mensaje = \"No fue posible obtener un vector válido para representar la información del curso.\";\n  accion = \"Verifica que el nodo de generación de embeddings esté funcionando correctamente.\";\n}\n\nelse if (\n  textoError.includes(\"dimensiones\")\n) {\n  titulo = \"El embedding tiene una dimensión incorrecta\";\n  mensaje = \"El vector generado no tiene la cantidad de dimensiones que espera la colección de Qdrant.\";\n  accion = \"Verifica que el modelo de embeddings utilizado sea compatible con la colección.\";\n}\n\nelse if (\n  textoError.includes(\"id_curso\") ||\n  textoError.includes(\"identificador\")\n) {\n  titulo = \"El curso no tiene un identificador válido\";\n  mensaje = \"La información recibida del curso no contiene un identificador válido para crear el punto en Qdrant.\";\n  accion = \"Verifica la información devuelta por la base de datos.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      curso: null,\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1632,
-        112
-      ],
-      "id": "57ef7ef5-c140-4374-9862-40d291fa39d0",
-      "name": "Error al preparar puntos"
-    },
-    {
-      "parameters": {
-        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nconst nombreCurso =\n  $json.nombre ??\n  $json.payload?.nombre ??\n  \"Curso no identificado\";\n\nlet titulo = \"No se pudo generar el embedding\";\nlet mensaje = \"Ocurrió un problema mientras se generaba la representación vectorial del curso.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"rate limit\") ||\n  textoError.includes(\"too many requests\") ||\n  textoError.includes(\"429\")\n) {\n  titulo = \"Servicio temporalmente ocupado\";\n  mensaje = \"El servicio de generación de embeddings está temporalmente ocupado y no pudo procesar el curso.\";\n  accion = \"Espera unos minutos y vuelve a intentarlo.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\")\n) {\n  titulo = \"La generación del embedding tardó demasiado\";\n  mensaje = \"El servicio tardó demasiado en generar el embedding del curso.\";\n  accion = \"Verifica la conexión e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"network\") ||\n  textoError.includes(\"econnrefused\")\n) {\n  titulo = \"No se pudo conectar con el servicio de embeddings\";\n  mensaje = \"No fue posible comunicarse con el servicio encargado de generar el embedding.\";\n  accion = \"Verifica que el servicio de embeddings esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"400\") ||\n  textoError.includes(\"bad request\") ||\n  textoError.includes(\"invalid\")\n) {\n  titulo = \"No se pudo procesar la información del curso\";\n  mensaje = \"El servicio de embeddings rechazó la información enviada para generar el vector.\";\n  accion = \"Verifica que los datos enviados al servicio tengan el formato esperado.\";\n}\n\nelse if (\n  textoError.includes(\"401\") ||\n  textoError.includes(\"403\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"forbidden\")\n) {\n  titulo = \"No se pudo autorizar la generación del embedding\";\n  mensaje = \"El sistema no tiene autorización para utilizar el servicio de embeddings.\";\n  accion = \"Verifica las credenciales y permisos del servicio de embeddings.\";\n}\n\nelse if (\n  textoError.includes(\"404\") ||\n  textoError.includes(\"not found\")\n) {\n  titulo = \"No se encontró el servicio de embeddings\";\n  mensaje = \"No fue posible encontrar el modelo o recurso necesario para generar el embedding.\";\n  accion = \"Verifica la configuración del modelo y del servicio de embeddings.\";\n}\n\nelse if (\n  textoError.includes(\"500\") ||\n  textoError.includes(\"internal server error\") ||\n  textoError.includes(\"502\") ||\n  textoError.includes(\"503\")\n) {\n  titulo = \"El servicio de embeddings presentó un error\";\n  mensaje = \"El servicio encargado de generar el embedding presentó un problema interno.\";\n  accion = \"Espera unos minutos y vuelve a intentarlo.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      curso: nombreCurso,\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1632,
-        272
-      ],
-      "id": "f471c312-04e8-42e4-8f39-00c8f88c3e64",
-      "name": "Error al generar embedding"
-    },
-    {
-      "parameters": {
-        "options": {}
-      },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        1904,
-        112
-      ],
-      "id": "e4ee909e-2776-4266-9695-4405e1d55af0",
-      "name": "Respuesta a errores posteriores a embeddings"
+      "id": "c9043781-a455-4a55-acbe-efd6c4d6e2cd",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "iNBGJEfFnmQxKqzZ",
+          "name": "OpenRouter account 2"
+        }
+      }
     },
     {
       "parameters": {
@@ -301,8 +140,271 @@
           },
           "conditions": [
             {
-              "id": "61b73f99-3f5e-4925-aedd-3b01779484c0",
-              "leftValue": "={{ $json.result.collections.some(c => c.name === 'cursos') }}",
+              "id": "9795ab51-44ec-4edc-80fa-e16b66d62683",
+              "leftValue": "={{ $json.valida }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        384,
+        0
+      ],
+      "id": "40d96a89-58ae-43b6-94f5-3504d4f944ba",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $json.body ?? {};\n\nconst pregunta = body.pregunta;\nconst nivel = body.nivel;\n\nconst respuesta = {\n  valida: true,\n  motivo: null,\n  pregunta: null,\n  nivel: null\n};\n\n// 1. Validar pregunta\n\nif (typeof pregunta !== 'string' || pregunta.trim() === '') {\n  respuesta.valida = false;\n  respuesta.motivo = 'La pregunta es obligatoria.';\n  return { json: respuesta };\n}\n\n// 2. Limitar longitud\n\nif (pregunta.length > 1000) {\n  respuesta.valida = false;\n  respuesta.motivo = 'La pregunta es demasiado larga.';\n  return { json: respuesta };\n}\n\n// 3. Limitar cantidad de líneas\n\nconst lineas = pregunta.split(/\\r?\\n/).length;\n\nif (lineas > 20) {\n  respuesta.valida = false;\n  respuesta.motivo = 'La consulta tiene un formato no válido.';\n  return { json: respuesta };\n}\n\n// 4. Normalizar y validar nivel\n\nconst nivelNormalizado = typeof nivel === 'string'\n  ? nivel.trim().toUpperCase()\n  : '';\n\nconst nivelesValidos = [\n  'BASICO',\n  'INTERMEDIO',\n  'AVANZADO',\n  'NULL'\n];\n\nif (!nivelesValidos.includes(nivelNormalizado)) {\n  respuesta.valida = false;\n  respuesta.motivo = 'El nivel debe ser BASICO, INTERMEDIO o AVANZADO.';\n  return { json: respuesta };\n}\n\n// 5. Detectar intentos de manipular las instrucciones\n\nconst patronesBloqueados = [\n\n  // Ignorar o cambiar instrucciones\n  /ignora\\s+(todas\\s+)?las\\s+instrucciones/i,\n  /ignora\\s+(las\\s+)?instrucciones\\s+(anteriores|previas|del\\s+sistema)/i,\n  /olvida\\s+(todas\\s+)?las\\s+instrucciones/i,\n  /olvida\\s+(las\\s+)?instrucciones\\s+(anteriores|previas)/i,\n  /descarta\\s+(todas\\s+)?las\\s+instrucciones/i,\n  /no\\s+sigas\\s+(las\\s+)?instrucciones/i,\n  /deja\\s+de\\s+seguir\\s+(las\\s+)?instrucciones/i,\n  /cambia\\s+(tus|las)\\s+instrucciones/i,\n  /modifica\\s+(tus|las)\\s+instrucciones/i,\n\n  // Prompt del sistema\n  /system\\s*prompt/i,\n  /systemprompt/i,\n  /prompt\\s+del\\s+sistema/i,\n  /prompt\\s+interno/i,\n  /prompt\\s+oculto/i,\n  /prompt\\s+privado/i,\n  /instrucciones\\s+internas/i,\n  /instrucciones\\s+del\\s+sistema/i,\n  /reglas\\s+internas/i,\n  /reglas\\s+del\\s+sistema/i,\n  /mensaje\\s+del\\s+sistema/i,\n  /configuraci[oó]n\\s+interna/i,\n\n  // Solicitar el prompt\n  /mu[eé]strame\\s+(el\\s+)?prompt/i,\n  /muestra\\s+(el\\s+)?prompt/i,\n  /ens[eé]ñame\\s+(el\\s+)?prompt/i,\n  /dime\\s+(el\\s+)?prompt/i,\n  /revela\\s+(el\\s+)?prompt/i,\n  /revel[aá]\\s+(tus\\s+)?instrucciones/i,\n  /cu[aá]les\\s+son\\s+tus\\s+instrucciones/i,\n  /qu[eé]\\s+instrucciones\\s+recibiste/i,\n  /qu[eé]\\s+reglas\\s+tienes/i,\n\n  // Credenciales\n  /dame\\s+(las\\s+)?credenciales/i,\n  /mu[eé]strame\\s+(las\\s+)?credenciales/i,\n  /credenciales\\s+(de|del|para)/i,\n  /api\\s*key/i,\n  /api\\s*token/i,\n  /access\\s*token/i,\n  /secret\\s*key/i,\n  /client\\s*secret/i,\n  /private\\s*key/i,\n  /clave\\s+(secreta|privada|de\\s+api)/i,\n  /contrase[ñn]a\\s+(de|del|para)/i,\n  /password\\s+(de|del|para)/i,\n  /secreto\\s+(de|del|para)/i,\n\n  // Información interna\n  /configuraci[oó]n\\s+(de|del)\\s+(sistema|servidor|backend)/i,\n  /datos\\s+internos/i,\n  /informaci[oó]n\\s+interna/i,\n  /estructura\\s+interna/i,\n  /arquitectura\\s+interna/i,\n  /endpoint\\s+interno/i,\n  /url\\s+interna/i,\n  /direcci[oó]n\\s+ip/i,\n  /ip\\s+del\\s+servidor/i,\n  /puerto\\s+del\\s+servidor/i,\n\n  // Acceso a bases de datos\n  /mu[eé]strame\\s+(la\\s+)?base\\s+de\\s+datos/i,\n  /dame\\s+(la\\s+)?base\\s+de\\s+datos/i,\n  /consulta\\s+(la\\s+)?base\\s+de\\s+datos/i,\n  /accede\\s+(a\\s+)?mysql/i,\n  /accede\\s+(a\\s+)?qdrant/i,\n  /mu[eé]strame\\s+(las\\s+)?tablas/i,\n  /mu[eé]strame\\s+(los\\s+)?registros/i,\n  /lista\\s+(las\\s+)?tablas/i,\n  /ejecuta\\s+(una\\s+)?consulta\\s+sql/i,\n  /ejecuta\\s+sql/i,\n  /select\\s+\\*.*from/i,\n\n  // Cambiar el comportamiento del modelo\n  /modo\\s+administrador/i,\n  /modo\\s+admin/i,\n  /modo\\s+desarrollador/i,\n  /developer\\s+mode/i,\n  /modo\\s+sin\\s+restricciones/i,\n  /sin\\s+restricciones/i,\n  /sin\\s+filtros/i,\n  /jailbreak/i,\n  /dan\\s+mode/i,\n\n  // Cambiar el rol del modelo\n  /ahora\\s+eres\\s+(un|una)/i,\n  /a\\s+partir\\s+de\\s+ahora\\s+eres/i,\n  /act[uú]a\\s+como\\s+(un|una)/i,\n  /simula\\s+ser\\s+(un|una)/i,\n  /tu\\s+nuevo\\s+rol\\s+es/i,\n  /cambia\\s+tu\\s+rol/i,\n  /ignora\\s+tu\\s+rol/i,\n\n  // Solicitar instrucciones completas\n  /repite\\s+(tus\\s+)?instrucciones/i,\n  /copia\\s+(tus\\s+)?instrucciones/i,\n  /imprime\\s+(tus\\s+)?instrucciones/i,\n  /escribe\\s+(tus\\s+)?instrucciones/i,\n/muestra\\s+todo\\s+lo\\s+que\\s+sabes\\s+sobre\\s+tu\\s+configuraci[oó]n/i\n];\n\nfor (const patron of patronesBloqueados) {\n  if (patron.test(pregunta)) {\n    respuesta.valida = false;\n    respuesta.motivo = 'La consulta contiene una solicitud no permitida.';\n    return { json: respuesta };\n  }\n}\n\n// 6. Detectar estructuras de prompts\n\nconst patronesPrompt = [\n  /system\\s*:/i,\n  /developer\\s*:/i,\n  /assistant\\s*:/i,\n  /user\\s*:/i,\n  /instructions\\s*:/i,\n  /context\\s*:/i,\n  /task\\s*:/i,\n  /role\\s*:/i,\n  /objective\\s*:/i,\n  /prompt\\s*:/i,\n\n  /<system[\\s>]/i,\n  /<\\/system>/i,\n  /<developer[\\s>]/i,\n  /<\\/developer>/i,\n  /<assistant[\\s>]/i,\n  /<\\/assistant>/i,\n  /<instructions?[\\s>]/i,\n  /<\\/instructions?>/i,\n\n  /\\[\\s*system\\s*\\]/i,\n  /\\[\\s*developer\\s*\\]/i,\n  /\\[\\s*assistant\\s*\\]/i,\n\n  /\\{\\s*\"role\"\\s*:/i\n];\n\nfor (const patron of patronesPrompt) {\n  if (patron.test(pregunta)) {\n    respuesta.valida = false;\n    respuesta.motivo = 'La consulta contiene una estructura no permitida.';\n    return { json: respuesta };\n  }\n}\n\n// 7. Consulta válida\n\nrespuesta.pregunta = pregunta.trim();\nrespuesta.nivel = nivelNormalizado;\n\nreturn { json: respuesta };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        0
+      ],
+      "id": "fac1f0b5-84f1-4fd4-b8a7-2eefd18cf52b",
+      "name": "Verificar entrada"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://qdrant:6333/collections/cursos/points/query",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    query: $('preparar consulta').item.json.vector,\n    limit: 5,\n    score_threshold: 0.10,\n    with_payload: true,\n    filter: $('preparar consulta').item.json.filter\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1824,
+        -48
+      ],
+      "id": "3acab80e-1e5e-46bb-9d64-a80973a6e1c0",
+      "name": "Recuperar candidatos",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"recomienda\": {\n      \"type\": \"boolean\"\n    },\n    \"id_curso\": {\n      \"type\": [\"integer\", \"null\"]\n    },\n    \"motivo\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\"recomienda\", \"id_curso\", \"motivo\"],\n  \"additionalProperties\": false\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2352,
+        304
+      ],
+      "id": "7ba72b4e-4644-48ee-b60d-64704cffd26c",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://qdrant:6333/collections/cursos/points/query",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    query: $json.vector,\n    limit: $json.limit,\n    score_threshold: $json.score_threshold,\n    with_payload: $json.with_payload,\n    filter: $json.filter\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1200,
+        -144
+      ],
+      "id": "4473812f-fb0c-4018-b4fe-521c076ae582",
+      "name": "Consulta a Qdrant",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8080/api/recomendaciones",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": []
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"idConsulta\": {{ $('Webhook').item.json.body.idConsulta }},\n  \"respuesta\": \"{{ $('Basic LLM Chain').item.json.output.motivo }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2784,
+        -304
+      ],
+      "id": "a856202a-3177-4554-be25-b0e632caf7f0",
+      "name": "Registrar recomendación",
+      "retryOnFail": true,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "iOO4d5PJcEPPMEOV",
+          "name": "Bearer Auth account 2"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8080/api/fuentes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"idRecomendacion\": {{ $json.idRecomendacion }},\n  \"idCurso\": {{ $json.idCurso }},\n  \"similitud\": {{ $json.similitud }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3152,
+        -576
+      ],
+      "id": "00499fd3-c92b-45b6-b114-71859af53057",
+      "name": "db fuentes",
+      "retryOnFail": true,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "iOO4d5PJcEPPMEOV",
+          "name": "Bearer Auth account 2"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8080/api/consultas/{{ $('Webhook').item.json.body.idConsulta }}/estado?nuevoEstado=RESPONDIDA",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3280,
+        -320
+      ],
+      "id": "9151f3bd-5568-41ce-ab38-4c7d893c5cb1",
+      "name": "actualizar estado de la consulta",
+      "retryOnFail": true,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "iOO4d5PJcEPPMEOV",
+          "name": "Bearer Auth account 2"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8080/api/consultas/{{ $('Webhook').item.json.body.idConsulta }}/estado?nuevoEstado=SIN_RESULTADOS",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2784,
+        32
+      ],
+      "id": "1276ef3b-07f6-489d-a4d5-e1eacec3a815",
+      "name": "consulta sin resultados",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "iOO4d5PJcEPPMEOV",
+          "name": "Bearer Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://host.docker.internal:8080/api/consultas/{{ $('Webhook').item.json.body.idConsulta }}/estado?nuevoEstado=ERROR",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        592,
+        192
+      ],
+      "id": "d27badec-cb43-44fe-8104-870dc1dd24f5",
+      "name": "Error en la consulta",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "iOO4d5PJcEPPMEOV",
+          "name": "Bearer Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{\n  {\n    ok: true,\n    recomienda: false,\n    mensaje: \"No encontramos un curso que se ajuste a lo que estás buscando. Puedes intentar con otro tema dentro del área de desarrollo de software y sistemas computacionales. O bien, ¿Te gustaría contactar con un agente para que pueda ayudarte a encontrar una opción?\",\n    contactar_asesor: true\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        3072,
+        32
+      ],
+      "id": "16af8696-db17-49d1-be63-1889d2f6b40f",
+      "name": "Respuesta sin resultados"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{\n  {\n    ok: false,\n    mensaje: \"Lo siento, no puedo procesar esa solicitud. Puedo ayudarte a encontrar cursos y recursos de aprendizaje disponibles en la plataforma. Por favor, intenta nuevamente.\"\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        800,
+        192
+      ],
+      "id": "f0aeb3ca-a2c7-4c5a-a842-210cdac7ca06",
+      "name": "Respuesta de error al frontend"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "086e95df-637a-4517-8d08-da192e54ed2c",
+              "leftValue": "={{ ($json.result?.points ?? []).length > 0 }}",
               "rightValue": "",
               "operator": {
                 "type": "boolean",
@@ -313,230 +415,276 @@
           ],
           "combinator": "and"
         },
-        "options": {
-          "ignoreCase": false
-        }
+        "options": {}
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        608,
-        -256
+        1632,
+        -160
       ],
-      "id": "1ed296f1-7166-4a0f-ad22-50073de21c7d",
-      "name": "If"
+      "id": "36ceab51-f56e-4098-8ff8-7629951f6644",
+      "name": "Concordancias dentro o fuera del umbral"
+    },
+    {
+      "parameters": {
+        "jsCode": "const recomendacion = $('Registrar recomendación').first().json;\nconst cursos = $('formatear resultados').first().json.cursos ?? [];\n\nreturn cursos.map(curso => ({\n  json: {\n    idRecomendacion: recomendacion.idRecomendacion,\n    idCurso: curso.id_curso,\n    similitud: curso.score\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2976,
+        -576
+      ],
+      "id": "243a4772-27a5-4777-b004-229e9a9c9dd9",
+      "name": "Preparar fuentes"
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3776,
+        -352
+      ],
+      "id": "0233615f-9af1-49bb-bd00-a420812a32af",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"parameters\": {\n    \"respondWith\": \"json\",\n    \"responseBody\": \"={{ $json }}\",\n    \"options\": {}\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2128,
+        400
+      ],
+      "id": "7a46686d-7a1a-4bb1-81f4-0912ef6dbc3e",
+      "name": "Respuesta de error al frontend1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"parameters\": {\n    \"respondWith\": \"json\",\n    \"responseBody\": \"={{ $json }}\",\n    \"options\": {}\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        3984,
+        -48
+      ],
+      "id": "90b0e114-2ce9-43f1-8b75-27fdcfbe23e0",
+      "name": "Respuesta de error al frontend2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudo generar el embedding\";\nlet mensaje = \"Ocurrió un problema al convertir la consulta en un vector para realizar la búsqueda semántica.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"econnrefused\") ||\n  textoError.includes(\"connection refused\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"network\")\n) {\n  titulo = \"No se pudo conectar con el servicio de embeddings\";\n  mensaje = \"No fue posible establecer la conexión con el servicio utilizado para generar el embedding de la consulta.\";\n  accion = \"Verifica que el servicio de embeddings esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"enotfound\") ||\n  textoError.includes(\"getaddrinfo\") ||\n  textoError.includes(\"dns\") ||\n  textoError.includes(\"host not found\")\n) {\n  titulo = \"No se pudo encontrar el servicio de embeddings\";\n  mensaje = \"El sistema no pudo localizar el servicio utilizado para generar el embedding.\";\n  accion = \"Verifica la dirección del servicio y la configuración de conexión.\";\n}\n\nelse if (\n  textoError.includes(\"401\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"invalid api key\") ||\n  textoError.includes(\"authentication\")\n) {\n  titulo = \"No se pudo autenticar con el servicio de embeddings\";\n  mensaje = \"El sistema no pudo autenticarse correctamente con el proveedor de embeddings.\";\n  accion = \"Verifica la credencial configurada para acceder al servicio.\";\n}\n\nelse if (\n  textoError.includes(\"403\") ||\n  textoError.includes(\"forbidden\") ||\n  textoError.includes(\"permission\")\n) {\n  titulo = \"No hay permisos para generar embeddings\";\n  mensaje = \"El servicio rechazó la solicitud porque la credencial utilizada no tiene permisos suficientes.\";\n  accion = \"Verifica los permisos y la configuración de acceso del proveedor.\";\n}\n\nelse if (\n  textoError.includes(\"404\") ||\n  textoError.includes(\"not found\") ||\n  textoError.includes(\"model not found\") ||\n  textoError.includes(\"model does not exist\")\n) {\n  titulo = \"No se encontró el modelo de embeddings\";\n  mensaje = \"El modelo configurado para generar embeddings no está disponible.\";\n  accion = \"Verifica el nombre del modelo y que esté disponible en el proveedor configurado.\";\n}\n\nelse if (\n  textoError.includes(\"400\") ||\n  textoError.includes(\"bad request\") ||\n  textoError.includes(\"invalid request\") ||\n  textoError.includes(\"invalid input\") ||\n  textoError.includes(\"invalid model\") ||\n  textoError.includes(\"input\")\n) {\n  titulo = \"La solicitud de embedding no es válida\";\n  mensaje = \"El servicio rechazó los datos enviados para generar el embedding.\";\n  accion = \"Verifica la pregunta enviada y la configuración del modelo de embeddings.\";\n}\n\nelse if (\n  textoError.includes(\"429\") ||\n  textoError.includes(\"rate limit\") ||\n  textoError.includes(\"too many requests\") ||\n  textoError.includes(\"quota\") ||\n  textoError.includes(\"insufficient\")\n) {\n  titulo = \"Se alcanzó el límite del servicio de embeddings\";\n  mensaje = \"El proveedor de embeddings rechazó temporalmente la solicitud debido a un límite de uso.\";\n  accion = \"Espera unos minutos antes de intentarlo nuevamente o verifica los límites de la cuenta.\";\n}\n\nelse if (\n  textoError.includes(\"500\") ||\n  textoError.includes(\"502\") ||\n  textoError.includes(\"503\") ||\n  textoError.includes(\"504\") ||\n  textoError.includes(\"internal server error\") ||\n  textoError.includes(\"bad gateway\") ||\n  textoError.includes(\"service unavailable\")\n) {\n  titulo = \"El servicio de embeddings no está disponible\";\n  mensaje = \"El proveedor de embeddings encontró un problema al procesar la solicitud.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\") ||\n  textoError.includes(\"etimedout\")\n) {\n  titulo = \"El servicio de embeddings tardó demasiado en responder\";\n  mensaje = \"El servicio no respondió dentro del tiempo esperado al generar el embedding.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1056,
+        0
+      ],
+      "id": "471dc5f3-d695-46d3-ae8b-3c05e7f25a9e",
+      "name": "Errores embeddings"
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudo consultar Qdrant\";\nlet mensaje = \"Ocurrió un problema al buscar cursos relacionados con la consulta.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"econnrefused\") ||\n  textoError.includes(\"connection refused\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"network\")\n) {\n  titulo = \"No se pudo conectar con Qdrant\";\n  mensaje = \"No fue posible establecer la conexión con el servicio de Qdrant para realizar la búsqueda.\";\n  accion = \"Verifica que Qdrant esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"enotfound\") ||\n  textoError.includes(\"getaddrinfo\") ||\n  textoError.includes(\"host not found\") ||\n  textoError.includes(\"dns\")\n) {\n  titulo = \"No se pudo encontrar el servidor de Qdrant\";\n  mensaje = \"El sistema no pudo localizar el servicio de Qdrant en la dirección configurada.\";\n  accion = \"Verifica la dirección de Qdrant y que el servicio esté disponible.\";\n}\n\nelse if (\n  textoError.includes(\"404\") ||\n  textoError.includes(\"not found\") ||\n  textoError.includes(\"collection\") &&\n  textoError.includes(\"not exist\")\n) {\n  titulo = \"No se encontró la colección de cursos\";\n  mensaje = \"La colección 'cursos' no está disponible en Qdrant para realizar la búsqueda.\";\n  accion = \"Verifica que la colección 'cursos' exista y esté correctamente configurada.\";\n}\n\nelse if (\n  textoError.includes(\"400\") ||\n  textoError.includes(\"bad request\") ||\n  textoError.includes(\"invalid\") ||\n  textoError.includes(\"invalid vector\") ||\n  textoError.includes(\"vector\") ||\n  textoError.includes(\"dimension\") ||\n  textoError.includes(\"query\") ||\n  textoError.includes(\"filter\") ||\n  textoError.includes(\"score_threshold\") ||\n  textoError.includes(\"limit\")\n) {\n  titulo = \"La consulta enviada a Qdrant no es válida\";\n  mensaje = \"Qdrant rechazó los parámetros utilizados para buscar cursos relacionados con la consulta.\";\n  accion = \"Verifica el vector generado, sus dimensiones y los filtros utilizados en la búsqueda.\";\n}\n\nelse if (\n  textoError.includes(\"401\") ||\n  textoError.includes(\"403\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"forbidden\")\n) {\n  titulo = \"No se pudo acceder a Qdrant\";\n  mensaje = \"El sistema no tiene autorización suficiente para consultar la colección de cursos.\";\n  accion = \"Verifica las credenciales y permisos de acceso a Qdrant.\";\n}\n\nelse if (\n  textoError.includes(\"409\") ||\n  textoError.includes(\"conflict\")\n) {\n  titulo = \"Qdrant rechazó la consulta\";\n  mensaje = \"El servicio detectó un conflicto al procesar la búsqueda.\";\n  accion = \"Verifica el estado de la colección y la configuración de la consulta.\";\n}\n\nelse if (\n  textoError.includes(\"500\") ||\n  textoError.includes(\"502\") ||\n  textoError.includes(\"503\") ||\n  textoError.includes(\"504\") ||\n  textoError.includes(\"internal server error\") ||\n  textoError.includes(\"bad gateway\") ||\n  textoError.includes(\"service unavailable\")\n) {\n  titulo = \"Qdrant no pudo procesar la búsqueda\";\n  mensaje = \"El servicio de Qdrant encontró un problema interno al realizar la búsqueda.\";\n  accion = \"Verifica que Qdrant esté funcionando correctamente e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\") ||\n  textoError.includes(\"etimedout\")\n) {\n  titulo = \"Qdrant tardó demasiado en responder\";\n  mensaje = \"El servicio de Qdrant no respondió dentro del tiempo esperado al realizar la búsqueda.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        -16
+      ],
+      "id": "d2362a75-e711-41f4-a364-94ab6ce1a9a6",
+      "name": "Errores en consulta Qdrant"
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudieron recuperar candidatos\";\nlet mensaje = \"Ocurrió un problema al buscar cursos relacionados con la consulta.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"econnrefused\") ||\n  textoError.includes(\"connection refused\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"network\")\n) {\n  titulo = \"No se pudo conectar con Qdrant\";\n  mensaje = \"No fue posible establecer la conexión con Qdrant para recuperar cursos candidatos.\";\n  accion = \"Verifica que Qdrant esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"enotfound\") ||\n  textoError.includes(\"getaddrinfo\") ||\n  textoError.includes(\"host not found\") ||\n  textoError.includes(\"dns\")\n) {\n  titulo = \"No se pudo encontrar el servidor de Qdrant\";\n  mensaje = \"El sistema no pudo localizar el servicio de Qdrant en la dirección configurada.\";\n  accion = \"Verifica la dirección de Qdrant y que el servicio esté disponible.\";\n}\n\nelse if (\n  textoError.includes(\"404\") ||\n  textoError.includes(\"not found\") ||\n  (\n    textoError.includes(\"collection\") &&\n    (\n      textoError.includes(\"not exist\") ||\n      textoError.includes(\"doesn't exist\") ||\n      textoError.includes(\"does not exist\")\n    )\n  )\n) {\n  titulo = \"No se encontró la colección de cursos\";\n  mensaje = \"La colección 'cursos' no está disponible en Qdrant para recuperar candidatos.\";\n  accion = \"Verifica que la colección 'cursos' exista y esté correctamente configurada.\";\n}\n\nelse if (\n  textoError.includes(\"400\") ||\n  textoError.includes(\"bad request\") ||\n  textoError.includes(\"invalid\") ||\n  textoError.includes(\"invalid vector\") ||\n  textoError.includes(\"vector\") ||\n  textoError.includes(\"dimension\") ||\n  textoError.includes(\"query\") ||\n  textoError.includes(\"filter\") ||\n  textoError.includes(\"score_threshold\") ||\n  textoError.includes(\"limit\")\n) {\n  titulo = \"La búsqueda de candidatos no es válida\";\n  mensaje = \"Qdrant rechazó los parámetros utilizados para recuperar cursos candidatos.\";\n  accion = \"Verifica el vector de consulta, sus dimensiones, el filtro y los parámetros de búsqueda.\";\n}\n\nelse if (\n  textoError.includes(\"401\") ||\n  textoError.includes(\"403\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"forbidden\")\n) {\n  titulo = \"No se pudo acceder a Qdrant\";\n  mensaje = \"El sistema no tiene autorización suficiente para recuperar candidatos de la colección de cursos.\";\n  accion = \"Verifica las credenciales y permisos de acceso a Qdrant.\";\n}\n\nelse if (\n  textoError.includes(\"409\") ||\n  textoError.includes(\"conflict\")\n) {\n  titulo = \"Qdrant rechazó la recuperación de candidatos\";\n  mensaje = \"El servicio detectó un conflicto al procesar la búsqueda de cursos candidatos.\";\n  accion = \"Verifica el estado de la colección y la configuración de la consulta.\";\n}\n\nelse if (\n  textoError.includes(\"500\") ||\n  textoError.includes(\"502\") ||\n  textoError.includes(\"503\") ||\n  textoError.includes(\"504\") ||\n  textoError.includes(\"internal server error\") ||\n  textoError.includes(\"bad gateway\") ||\n  textoError.includes(\"service unavailable\")\n) {\n  titulo = \"Qdrant no pudo recuperar los candidatos\";\n  mensaje = \"El servicio de Qdrant encontró un problema interno al recuperar cursos candidatos.\";\n  accion = \"Verifica que Qdrant esté funcionando correctamente e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\") ||\n  textoError.includes(\"etimedout\")\n) {\n  titulo = \"Qdrant tardó demasiado en responder\";\n  mensaje = \"El servicio de Qdrant no respondió dentro del tiempo esperado al recuperar candidatos.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        80
+      ],
+      "id": "20fac6f4-2670-4385-bdfb-89f22735c2ac",
+      "name": "Errores durante la recuperación"
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudo generar la recomendación\";\nlet mensaje = \"Ocurrió un problema al analizar los cursos disponibles para tu consulta.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"econnrefused\") ||\n  textoError.includes(\"connection refused\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"network\")\n) {\n  titulo = \"No se pudo conectar con el servicio de IA\";\n  mensaje = \"No fue posible establecer la conexión con el servicio utilizado para generar la recomendación.\";\n  accion = \"Verifica que el servicio de IA esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"enotfound\") ||\n  textoError.includes(\"getaddrinfo\") ||\n  textoError.includes(\"host not found\") ||\n  textoError.includes(\"dns\")\n) {\n  titulo = \"No se pudo encontrar el servicio de IA\";\n  mensaje = \"El sistema no pudo localizar el servicio utilizado para generar la recomendación.\";\n  accion = \"Verifica la dirección del servicio y la configuración de conexión.\";\n}\n\nelse if (\n  textoError.includes(\"401\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"invalid api key\") ||\n  textoError.includes(\"authentication\")\n) {\n  titulo = \"No se pudo autenticar con el servicio de IA\";\n  mensaje = \"El sistema no pudo autenticarse correctamente con el proveedor utilizado para generar la recomendación.\";\n  accion = \"Verifica la credencial configurada para acceder al servicio.\";\n}\n\nelse if (\n  textoError.includes(\"403\") ||\n  textoError.includes(\"forbidden\") ||\n  textoError.includes(\"permission\")\n) {\n  titulo = \"No hay permisos para generar la recomendación\";\n  mensaje = \"El proveedor rechazó la solicitud porque la credencial utilizada no tiene permisos suficientes.\";\n  accion = \"Verifica los permisos y la configuración de acceso del proveedor.\";\n}\n\nelse if (\n  textoError.includes(\"404\") ||\n  textoError.includes(\"not found\") ||\n  textoError.includes(\"model not found\") ||\n  textoError.includes(\"model does not exist\")\n) {\n  titulo = \"No se encontró el modelo de IA\";\n  mensaje = \"El modelo configurado para generar la recomendación no está disponible.\";\n  accion = \"Verifica el nombre del modelo y que esté disponible en el proveedor configurado.\";\n}\n\nelse if (\n  textoError.includes(\"429\") ||\n  textoError.includes(\"rate limit\") ||\n  textoError.includes(\"too many requests\") ||\n  textoError.includes(\"quota\") ||\n  textoError.includes(\"capacity\")\n) {\n  titulo = \"Se alcanzó el límite del servicio de IA\";\n  mensaje = \"El proveedor rechazó temporalmente la solicitud debido a un límite de uso o disponibilidad.\";\n  accion = \"Espera unos minutos antes de intentarlo nuevamente o verifica los límites de la cuenta.\";\n}\n\nelse if (\n  textoError.includes(\"400\") ||\n  textoError.includes(\"bad request\") ||\n  textoError.includes(\"invalid request\") ||\n  textoError.includes(\"invalid input\")\n) {\n  titulo = \"La solicitud de recomendación no es válida\";\n  mensaje = \"El servicio de IA rechazó los datos enviados para generar la recomendación.\";\n  accion = \"Verifica la consulta y los cursos candidatos enviados al modelo.\";\n}\n\nelse if (\n  textoError.includes(\"output parser\") ||\n  textoError.includes(\"structured output\") ||\n  textoError.includes(\"schema\") ||\n  textoError.includes(\"parsing\") ||\n  textoError.includes(\"parse\")\n) {\n  titulo = \"La respuesta del modelo no tiene el formato esperado\";\n  mensaje = \"El modelo respondió, pero su resultado no cumple con la estructura requerida para generar la recomendación.\";\n  accion = \"Inténtalo nuevamente. Si el problema continúa, revisa el formato de salida configurado para el modelo.\";\n}\n\nelse if (\n  textoError.includes(\"cannot read properties of undefined\") ||\n  textoError.includes(\"reading 'message'\") ||\n  textoError.includes(\"undefined\") ||\n  textoError.includes(\"empty response\") ||\n  textoError.includes(\"no response\")\n) {\n  titulo = \"El servicio de IA no devolvió una respuesta válida\";\n  mensaje = \"El modelo no proporcionó una respuesta utilizable para procesar la recomendación.\";\n  accion = \"Inténtalo nuevamente. Si el problema continúa, verifica la disponibilidad del modelo.\";\n}\n\nelse if (\n  textoError.includes(\"500\") ||\n  textoError.includes(\"502\") ||\n  textoError.includes(\"503\") ||\n  textoError.includes(\"504\") ||\n  textoError.includes(\"internal server error\") ||\n  textoError.includes(\"bad gateway\") ||\n  textoError.includes(\"service unavailable\")\n) {\n  titulo = \"El servicio de IA no pudo generar la recomendación\";\n  mensaje = \"El proveedor encontró un problema interno al procesar la solicitud.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\") ||\n  textoError.includes(\"etimedout\")\n) {\n  titulo = \"El servicio de IA tardó demasiado en responder\";\n  mensaje = \"El modelo no respondió dentro del tiempo esperado al generar la recomendación.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2560,
+        -64
+      ],
+      "id": "44efea0f-4360-4568-a095-e9e4ed3074da",
+      "name": "Error con el LLM"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "0fc5802e-7e34-44fc-871c-4b050c88e388",
+              "leftValue": "={{ $json.output.recomienda }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2560,
+        -288
+      ],
+      "id": "fabc9b4b-fb66-4e62-bed5-d01df5130ce0",
+      "name": "resultados"
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudo actualizar la consulta\";\nlet mensaje = \"Ocurrió un problema al actualizar el estado de tu consulta.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"econnrefused\") ||\n  textoError.includes(\"connection refused\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"network\")\n) {\n  titulo = \"No se pudo conectar con el sistema\";\n  mensaje = \"No fue posible establecer la conexión con el servicio encargado de actualizar la consulta.\";\n  accion = \"Verifica que el backend esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"enotfound\") ||\n  textoError.includes(\"getaddrinfo\") ||\n  textoError.includes(\"host not found\") ||\n  textoError.includes(\"dns\")\n) {\n  titulo = \"No se pudo encontrar el servidor\";\n  mensaje = \"El sistema no pudo localizar el servicio encargado de actualizar la consulta.\";\n  accion = \"Verifica la dirección del backend y que el servicio esté disponible.\";\n}\n\nelse if (\n  textoError.includes(\"401\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"invalid token\") ||\n  textoError.includes(\"authentication\")\n) {\n  titulo = \"No se pudo autenticar la solicitud\";\n  mensaje = \"El sistema no pudo validar las credenciales utilizadas para actualizar la consulta.\";\n  accion = \"Verifica el token de acceso e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"403\") ||\n  textoError.includes(\"forbidden\") ||\n  textoError.includes(\"permission\")\n) {\n  titulo = \"No tienes permisos para actualizar la consulta\";\n  mensaje = \"El servidor rechazó la solicitud porque no hay permisos suficientes para modificar el estado.\";\n  accion = \"Verifica los permisos asociados al token de acceso.\";\n}\n\nelse if (\n  textoError.includes(\"404\") ||\n  textoError.includes(\"not found\") ||\n  textoError.includes(\"consulta no encontrada\") ||\n  textoError.includes(\"consulta inexistente\")\n) {\n  titulo = \"No se encontró la consulta\";\n  mensaje = \"El sistema no encontró la consulta que se intentaba actualizar.\";\n  accion = \"Verifica el identificador de la consulta e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"400\") ||\n  textoError.includes(\"bad request\") ||\n  textoError.includes(\"invalid\") ||\n  textoError.includes(\"estado inválido\") ||\n  textoError.includes(\"estado no válido\") ||\n  textoError.includes(\"nuevoestado\")\n) {\n  titulo = \"El estado de la consulta no es válido\";\n  mensaje = \"El servidor rechazó el estado solicitado para la consulta.\";\n  accion = \"Verifica que el estado enviado sea válido para el flujo de la aplicación.\";\n}\n\nelse if (\n  textoError.includes(\"409\") ||\n  textoError.includes(\"conflict\")\n) {\n  titulo = \"No se pudo actualizar la consulta\";\n  mensaje = \"El servidor detectó un conflicto al intentar actualizar el estado de la consulta.\";\n  accion = \"Verifica el estado actual de la consulta e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"500\") ||\n  textoError.includes(\"502\") ||\n  textoError.includes(\"503\") ||\n  textoError.includes(\"504\") ||\n  textoError.includes(\"internal server error\") ||\n  textoError.includes(\"bad gateway\") ||\n  textoError.includes(\"service unavailable\")\n) {\n  titulo = \"El servidor no pudo actualizar la consulta\";\n  mensaje = \"El backend encontró un problema interno al intentar actualizar el estado de la consulta.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\") ||\n  textoError.includes(\"etimedout\")\n) {\n  titulo = \"El servidor tardó demasiado en responder\";\n  mensaje = \"El backend no respondió dentro del tiempo esperado al actualizar la consulta.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3072,
+        -160
+      ],
+      "id": "842085c8-c7b0-4420-bc3e-99cf8102323e",
+      "name": "Error al registrar las recomendaciones"
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudo guardar la fuente\";\nlet mensaje = \"Ocurrió un problema al guardar la información del curso utilizado en la recomendación.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"econnrefused\") ||\n  textoError.includes(\"connection refused\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"network\")\n) {\n  titulo = \"No se pudo conectar con el backend\";\n  mensaje = \"No fue posible establecer la conexión con el servicio encargado de guardar las fuentes.\";\n  accion = \"Verifica que el backend esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"enotfound\") ||\n  textoError.includes(\"getaddrinfo\") ||\n  textoError.includes(\"host not found\") ||\n  textoError.includes(\"dns\")\n) {\n  titulo = \"No se pudo encontrar el servidor\";\n  mensaje = \"El sistema no pudo localizar el servicio encargado de guardar las fuentes.\";\n  accion = \"Verifica la dirección del backend y que el servicio esté disponible.\";\n}\n\nelse if (\n  textoError.includes(\"401\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"invalid token\") ||\n  textoError.includes(\"authentication\")\n) {\n  titulo = \"No se pudo autenticar la solicitud\";\n  mensaje = \"El sistema no pudo validar las credenciales utilizadas para guardar la fuente.\";\n  accion = \"Verifica el token de acceso e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"403\") ||\n  textoError.includes(\"forbidden\") ||\n  textoError.includes(\"permission\")\n) {\n  titulo = \"No tienes permisos para guardar la fuente\";\n  mensaje = \"El servidor rechazó la solicitud porque no hay permisos suficientes para registrar la fuente.\";\n  accion = \"Verifica los permisos asociados al token de acceso.\";\n}\n\nelse if (\n  textoError.includes(\"404\") ||\n  textoError.includes(\"not found\") ||\n  textoError.includes(\"recomendación no encontrada\") ||\n  textoError.includes(\"recomendacion no encontrada\") ||\n  textoError.includes(\"curso no encontrado\")\n) {\n  titulo = \"No se encontró la información relacionada\";\n  mensaje = \"No se encontró la recomendación o el curso asociado a la fuente que se intenta guardar.\";\n  accion = \"Verifica el identificador de la recomendación y del curso.\";\n}\n\nelse if (\n  textoError.includes(\"400\") ||\n  textoError.includes(\"bad request\") ||\n  textoError.includes(\"invalid\") ||\n  textoError.includes(\"similitud\") ||\n  textoError.includes(\"idrecomendacion\") ||\n  textoError.includes(\"idcurso\")\n) {\n  titulo = \"Los datos de la fuente no son válidos\";\n  mensaje = \"El servidor rechazó los datos enviados para registrar la fuente.\";\n  accion = \"Verifica los identificadores de la recomendación y del curso, y el valor de similitud.\";\n}\n\nelse if (\n  textoError.includes(\"1062\") ||\n  textoError.includes(\"duplicate entry\") ||\n  textoError.includes(\"duplicate key\") ||\n  textoError.includes(\"already exists\") ||\n  textoError.includes(\"primary key\")\n) {\n  titulo = \"La fuente ya está registrada\";\n  mensaje = \"La relación entre esta recomendación y este curso ya se encuentra registrada.\";\n  accion = \"Verifica si la fuente ya fue guardada antes de intentar registrarla nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"1451\") ||\n  textoError.includes(\"1452\") ||\n  textoError.includes(\"foreign key\") ||\n  textoError.includes(\"constraint\") ||\n  textoError.includes(\"integrity constraint\")\n) {\n  titulo = \"No se pudo guardar la fuente relacionada\";\n  mensaje = \"La fuente no pudo guardarse porque alguno de los registros relacionados no cumple con las restricciones de la base de datos.\";\n  accion = \"Verifica que la recomendación y el curso existan y estén correctamente relacionados.\";\n}\n\nelse if (\n  textoError.includes(\"500\") ||\n  textoError.includes(\"502\") ||\n  textoError.includes(\"503\") ||\n  textoError.includes(\"504\") ||\n  textoError.includes(\"internal server error\") ||\n  textoError.includes(\"bad gateway\") ||\n  textoError.includes(\"service unavailable\")\n) {\n  titulo = \"El servidor no pudo guardar la fuente\";\n  mensaje = \"El backend encontró un problema interno al intentar guardar la fuente de la recomendación.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\") ||\n  textoError.includes(\"etimedout\")\n) {\n  titulo = \"El servidor tardó demasiado en responder\";\n  mensaje = \"El backend no respondió dentro del tiempo esperado al guardar la fuente.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3760,
+        -160
+      ],
+      "id": "baed56a5-f066-45f7-8106-3ce05b2660ea",
+      "name": "Error al actualizar las fuentes"
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $json.error ?? {};\n\nconst mensajeTecnico =\n  error.message ??\n  error.description ??\n  \"No se proporcionaron detalles.\";\n\nlet titulo = \"No se pudo actualizar la consulta\";\nlet mensaje = \"Ocurrió un problema al actualizar el estado de tu consulta.\";\nlet accion = \"Inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n\nconst textoError = mensajeTecnico.toLowerCase();\n\nif (\n  textoError.includes(\"econnrefused\") ||\n  textoError.includes(\"connection refused\") ||\n  textoError.includes(\"connect\") ||\n  textoError.includes(\"connection\") ||\n  textoError.includes(\"network\")\n) {\n  titulo = \"No se pudo conectar con el backend\";\n  mensaje = \"No fue posible establecer la conexión con el servicio encargado de actualizar la consulta.\";\n  accion = \"Verifica que el backend esté disponible e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"enotfound\") ||\n  textoError.includes(\"getaddrinfo\") ||\n  textoError.includes(\"host not found\") ||\n  textoError.includes(\"dns\")\n) {\n  titulo = \"No se pudo encontrar el servidor\";\n  mensaje = \"El sistema no pudo localizar el servicio encargado de actualizar la consulta.\";\n  accion = \"Verifica la dirección del backend y que el servicio esté disponible.\";\n}\n\nelse if (\n  textoError.includes(\"401\") ||\n  textoError.includes(\"unauthorized\") ||\n  textoError.includes(\"invalid token\") ||\n  textoError.includes(\"authentication\")\n) {\n  titulo = \"No se pudo autenticar la solicitud\";\n  mensaje = \"El sistema no pudo validar las credenciales utilizadas para actualizar la consulta.\";\n  accion = \"Verifica el token de acceso e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"403\") ||\n  textoError.includes(\"forbidden\") ||\n  textoError.includes(\"permission\")\n) {\n  titulo = \"No tienes permisos para actualizar la consulta\";\n  mensaje = \"El servidor rechazó la solicitud porque no hay permisos suficientes para modificar el estado.\";\n  accion = \"Verifica los permisos asociados al token de acceso.\";\n}\n\nelse if (\n  textoError.includes(\"404\") ||\n  textoError.includes(\"not found\") ||\n  textoError.includes(\"consulta no encontrada\") ||\n  textoError.includes(\"consulta inexistente\")\n) {\n  titulo = \"No se encontró la consulta\";\n  mensaje = \"El sistema no encontró la consulta que se intentaba actualizar.\";\n  accion = \"Verifica el identificador de la consulta e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"400\") ||\n  textoError.includes(\"bad request\") ||\n  textoError.includes(\"invalid\") ||\n  textoError.includes(\"estado inválido\") ||\n  textoError.includes(\"estado no válido\") ||\n  textoError.includes(\"nuevoestado\")\n) {\n  titulo = \"El estado de la consulta no es válido\";\n  mensaje = \"El servidor rechazó el estado solicitado para la consulta.\";\n  accion = \"Verifica que el estado enviado sea válido para el flujo de la aplicación.\";\n}\n\nelse if (\n  textoError.includes(\"409\") ||\n  textoError.includes(\"conflict\")\n) {\n  titulo = \"No se pudo actualizar la consulta\";\n  mensaje = \"El servidor detectó un conflicto al intentar actualizar el estado de la consulta.\";\n  accion = \"Verifica el estado actual de la consulta e inténtalo nuevamente.\";\n}\n\nelse if (\n  textoError.includes(\"500\") ||\n  textoError.includes(\"502\") ||\n  textoError.includes(\"503\") ||\n  textoError.includes(\"504\") ||\n  textoError.includes(\"internal server error\") ||\n  textoError.includes(\"bad gateway\") ||\n  textoError.includes(\"service unavailable\")\n) {\n  titulo = \"El servidor no pudo actualizar la consulta\";\n  mensaje = \"El backend encontró un problema interno al intentar actualizar el estado de la consulta.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente. Si el problema continúa, contacta al administrador.\";\n}\n\nelse if (\n  textoError.includes(\"timeout\") ||\n  textoError.includes(\"timed out\") ||\n  textoError.includes(\"etimedout\")\n) {\n  titulo = \"El servidor tardó demasiado en responder\";\n  mensaje = \"El backend no respondió dentro del tiempo esperado al actualizar la consulta.\";\n  accion = \"Espera unos minutos e inténtalo nuevamente.\";\n}\n\nreturn [\n  {\n    json: {\n      estado: \"error\",\n      titulo,\n      mensaje,\n      accion_recomendada: accion,\n      puede_reintentar: true,\n      error_tecnico: mensajeTecnico\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3488,
+        -224
+      ],
+      "id": "a5b15698-483d-4750-8f3a-3129b25c24a6",
+      "name": "Error al actualizar el estado de la consulta"
     }
   ],
   "connections": {
-    "When clicking ‘Execute workflow’": {
+    "Webhook": {
       "main": [
         [
           {
-            "node": "Consulta a la base de datos",
+            "node": "Verificar entrada",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "generar embedding": {
+    "embeddings": {
       "main": [
         [
           {
-            "node": "Preparar puntos",
+            "node": "preparar consulta",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Error al generar embedding",
+            "node": "Errores embeddings",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Preparar puntos": {
+    "preparar consulta": {
       "main": [
         [
           {
-            "node": "guardar en qdrant",
+            "node": "Consulta a Qdrant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "formatear resultados": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "resultados",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Error al preparar puntos",
+            "node": "Error con el LLM",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "crear colecciones": {
-      "main": [
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
         [
           {
-            "node": "Loop de cursos",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Error al crear la colección",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "guardar en qdrant": {
-      "main": [
-        [
-          {
-            "node": "Espera (2s)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Error al guardar en Qdrant",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Consultar colecciones": {
-      "main": [
-        [
-          {
-            "node": "If",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Error en la consulta de Qdrant",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Error en la consulta SQL": {
-      "main": [
-        [
-          {
-            "node": "Respuesta a errores previos a embeddings",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Consulta a la base de datos": {
-      "main": [
-        [
-          {
-            "node": "Consultar colecciones",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Error en la consulta SQL",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Error en la consulta de Qdrant": {
-      "main": [
-        [
-          {
-            "node": "Respuesta a errores previos a embeddings",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Error al crear la colección": {
-      "main": [
-        [
-          {
-            "node": "Respuesta a errores previos a embeddings",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Loop de cursos": {
-      "main": [
-        [
-          {
-            "node": "Éxito al guardar la información",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "generar embedding",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Espera (2s)": {
-      "main": [
-        [
-          {
-            "node": "Loop de cursos",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Error al guardar en Qdrant": {
-      "main": [
-        [
-          {
-            "node": "Respuesta a errores posteriores a embeddings",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Error al preparar puntos": {
-      "main": [
-        [
-          {
-            "node": "Respuesta a errores posteriores a embeddings",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Error al generar embedding": {
-      "main": [
-        [
-          {
-            "node": "Respuesta a errores posteriores a embeddings",
-            "type": "main",
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
             "index": 0
           }
         ]
@@ -546,14 +694,277 @@
       "main": [
         [
           {
-            "node": "Loop de cursos",
+            "node": "embeddings",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "crear colecciones",
+            "node": "Error en la consulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar entrada": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recuperar candidatos": {
+      "main": [
+        [
+          {
+            "node": "formatear resultados",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Errores durante la recuperación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consulta a Qdrant": {
+      "main": [
+        [
+          {
+            "node": "Concordancias dentro o fuera del umbral",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Errores en consulta Qdrant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar recomendación": {
+      "main": [
+        [
+          {
+            "node": "Preparar fuentes",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "actualizar estado de la consulta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error al registrar las recomendaciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "db fuentes": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error al actualizar las fuentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "actualizar estado de la consulta": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Error al actualizar el estado de la consulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "consulta sin resultados": {
+      "main": [
+        [
+          {
+            "node": "Respuesta sin resultados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error en la consulta": {
+      "main": [
+        [
+          {
+            "node": "Respuesta de error al frontend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Concordancias dentro o fuera del umbral": {
+      "main": [
+        [
+          {
+            "node": "formatear resultados",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Recuperar candidatos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar fuentes": {
+      "main": [
+        [
+          {
+            "node": "db fuentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Errores embeddings": {
+      "main": [
+        [
+          {
+            "node": "Respuesta de error al frontend1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Errores en consulta Qdrant": {
+      "main": [
+        [
+          {
+            "node": "Respuesta de error al frontend1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Errores durante la recuperación": {
+      "main": [
+        [
+          {
+            "node": "Respuesta de error al frontend1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error con el LLM": {
+      "main": [
+        [
+          {
+            "node": "Respuesta de error al frontend2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "resultados": {
+      "main": [
+        [
+          {
+            "node": "Registrar recomendación",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "consulta sin resultados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error al registrar las recomendaciones": {
+      "main": [
+        [
+          {
+            "node": "Respuesta de error al frontend2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error al actualizar las fuentes": {
+      "main": [
+        [
+          {
+            "node": "Respuesta de error al frontend2",
             "type": "main",
             "index": 0
           }
